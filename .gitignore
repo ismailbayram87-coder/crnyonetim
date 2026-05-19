@@ -1,0 +1,10 @@
+# Root gitignore
+.DS_Store
+.vscode/
+.idea/
+*.log
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
