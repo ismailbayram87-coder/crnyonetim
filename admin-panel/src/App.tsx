@@ -299,11 +299,9 @@ export default function App() {
     if (!currentApt) return;
 
     let finalAmount = parseFloat(debtAmount);
-    let finalDesc = debtDesc;
 
     if (debtType === 'aidat_kiraci') {
       finalAmount = debtAmount !== '' ? parseFloat(debtAmount) : currentApt.duesAmount;
-      finalDesc = `${format(new Date(), 'MMMM yyyy')} Toplu Aidat`;
     } else {
       if (!debtAmount || !debtDesc) return;
     }
