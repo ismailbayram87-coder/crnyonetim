@@ -18,7 +18,8 @@ import {
   Download,
   Upload,
   Activity,
-  Grid
+  Grid,
+  RotateCcw
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -1313,6 +1314,19 @@ export default function App() {
     localStorage.setItem('crm_predefined_jobs', JSON.stringify(predefinedJobs));
   }, [predefinedJobs]);
 
+  const handleResetToDefaults = () => {
+    if (window.confirm("Tüm yerel verileri sıfırlayıp Elitkent B Blok gerçek verilerini ve varsayılan ayarları yeniden yüklemek istediğinize emin misiniz? Bu işlem yaptığınız tüm değişiklikleri geri alacaktır.")) {
+      localStorage.removeItem('crm_apartments');
+      localStorage.removeItem('crm_transactions');
+      localStorage.removeItem('crm_residents');
+      localStorage.removeItem('crm_staffs');
+      localStorage.removeItem('crm_staff_jobs');
+      localStorage.removeItem('crm_predefined_jobs');
+      localStorage.removeItem('crm_available_months');
+      window.location.reload();
+    }
+  };
+
   // Modals
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
@@ -2520,6 +2534,25 @@ export default function App() {
         <button className={`nav-item ${activeTab === 'import' ? 'active' : ''}`} onClick={() => { setImportStep(1); setImportRawText(''); setActiveTab('import'); }}>
           <Upload size={20} />
           <span>Excel Veri Aktarımı</span>
+        </button>
+        
+        <div style={{ margin: '16px 0', borderBottom: '1px solid var(--border-card)' }}></div>
+        <button 
+          className="nav-item" 
+          onClick={handleResetToDefaults} 
+          style={{ 
+            color: '#f87171', 
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            width: '100%',
+            cursor: 'pointer',
+            textAlign: 'left'
+          }}
+        >
+          <RotateCcw size={20} />
+          <span>Verileri Sıfırla</span>
         </button>
       </div>
  
