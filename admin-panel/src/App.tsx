@@ -77,23 +77,812 @@ interface PredefinedJob {
 }
 
 const INITIAL_APARTMENTS: Apartment[] = [
+  { id: 'apt_elitkent_b', name: 'Elitkent Sitesi B Blok', duesDay: 15, duesAmount: 1000 },
   { id: 'apt_1', name: 'Güneş Apartmanı', duesDay: 15, duesAmount: 500 },
   { id: 'apt_2', name: 'Yıldız Sitesi A Blok', duesDay: 5, duesAmount: 750 },
 ];
 
 const INITIAL_RESIDENTS: Resident[] = [
-  { id: '1', apartmentId: 'apt_1', name: 'Ahmet Yılmaz', aptNo: '1', phone: '05551234567', balance: 0, type: 'kiraci' },
-  { id: '1_owner', apartmentId: 'apt_1', name: 'Kemal Sunal', aptNo: '1', phone: '05301234567', balance: 0, type: 'ev_sahibi' },
-  { id: '2', apartmentId: 'apt_1', name: 'Ayşe Kaya', aptNo: '2', phone: '05321234567', balance: -500, type: 'ev_sahibi' },
-  { id: '3', apartmentId: 'apt_2', name: 'Mehmet Demir', aptNo: '1', phone: '05441234567', balance: 0, type: 'ev_sahibi' },
-  { id: '4', apartmentId: 'apt_2', name: 'Fatma Çelik', aptNo: '2', phone: '05331234567', balance: -200, type: 'kiraci' },
+  {
+    "id": "1",
+    "apartmentId": "apt_1",
+    "name": "Ahmet Yılmaz",
+    "aptNo": "1",
+    "phone": "05551234567",
+    "balance": 0,
+    "type": "kiraci"
+  },
+  {
+    "id": "1_owner",
+    "apartmentId": "apt_1",
+    "name": "Kemal Sunal",
+    "aptNo": "1",
+    "phone": "05301234567",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "2",
+    "apartmentId": "apt_1",
+    "name": "Ayşe Kaya",
+    "aptNo": "2",
+    "phone": "05321234567",
+    "balance": -500,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "3",
+    "apartmentId": "apt_2",
+    "name": "Mehmet Demir",
+    "aptNo": "1",
+    "phone": "05441234567",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "4",
+    "apartmentId": "apt_2",
+    "name": "Fatma Çelik",
+    "aptNo": "2",
+    "phone": "05331234567",
+    "balance": -200,
+    "type": "kiraci"
+  },
+  {
+    "id": "elitkent_1",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Recep AVALI",
+    "aptNo": "1",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_2",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Recep BEKE",
+    "aptNo": "2",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_3",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Mehmet Ali TİRYAKİ",
+    "aptNo": "3",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_4",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Cahit UÇAR",
+    "aptNo": "4",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_5",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Rıdvan HELVACI",
+    "aptNo": "5",
+    "phone": "Girilmedi",
+    "balance": -0.41,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_6",
+    "apartmentId": "apt_elitkent_b",
+    "name": "ReceP UZUN",
+    "aptNo": "6",
+    "phone": "Girilmedi",
+    "balance": -0.59,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_7",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Şaban ÇAKIROĞLU",
+    "aptNo": "7",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_8",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Özer ERCAN",
+    "aptNo": "8",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_9",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Nusret HAYDAROĞLU",
+    "aptNo": "9",
+    "phone": "Girilmedi",
+    "balance": -993.56,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_10",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Sinan Bahri BALABAN",
+    "aptNo": "10",
+    "phone": "Girilmedi",
+    "balance": -3.39,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_11",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Tunahan KAPLAN",
+    "aptNo": "11",
+    "phone": "Girilmedi",
+    "balance": -6114.1,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_12",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Erol KIRMACI",
+    "aptNo": "12",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_13",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Mustafa EMİCİ",
+    "aptNo": "13",
+    "phone": "Girilmedi",
+    "balance": 0.22,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_14",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Recep KUŞOĞLU",
+    "aptNo": "14",
+    "phone": "Girilmedi",
+    "balance": 0.39,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_15",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Mehmet US",
+    "aptNo": "15",
+    "phone": "Girilmedi",
+    "balance": 17.04,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_16",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Bayram ERTEKİN",
+    "aptNo": "16",
+    "phone": "Girilmedi",
+    "balance": 0.19,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_17",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Fazıl KARAMUSAOĞLU",
+    "aptNo": "17",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_18",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Emre AKBIYIK",
+    "aptNo": "18",
+    "phone": "Girilmedi",
+    "balance": 0.07,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_19",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Cemil METİN",
+    "aptNo": "19",
+    "phone": "Girilmedi",
+    "balance": 4.34,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_20",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Ömer Faruk DEDEOĞLU",
+    "aptNo": "20",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_21",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Şaban ŞEN",
+    "aptNo": "21",
+    "phone": "Girilmedi",
+    "balance": 6.75,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_22",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Fayık TAŞAN",
+    "aptNo": "22",
+    "phone": "Girilmedi",
+    "balance": -3358,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_23",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Mehmet Ali TİRYAKİ",
+    "aptNo": "23",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_24",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Hakan KARAHASAN",
+    "aptNo": "24",
+    "phone": "Girilmedi",
+    "balance": 0.67,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_25",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Gürcan Poyraz ÖZENÇ",
+    "aptNo": "25",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_26",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Nuri DÖLEK",
+    "aptNo": "26",
+    "phone": "Girilmedi",
+    "balance": 1.25,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_27",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Faik KÜÇÜKBULUT",
+    "aptNo": "27",
+    "phone": "Girilmedi",
+    "balance": 3.02,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_28",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Semih ADALIOĞLU",
+    "aptNo": "28",
+    "phone": "Girilmedi",
+    "balance": 3,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_29",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Hidayet TEKİN",
+    "aptNo": "29",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_30",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Aslan ÇİFCİ",
+    "aptNo": "30",
+    "phone": "Girilmedi",
+    "balance": 0.2,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_31",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Nebahat TÜRİDİ",
+    "aptNo": "31",
+    "phone": "Girilmedi",
+    "balance": 48.04,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_32",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Furkan KÖSE",
+    "aptNo": "32",
+    "phone": "Girilmedi",
+    "balance": 10.52,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_33",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Gökhan SELAM",
+    "aptNo": "33",
+    "phone": "Girilmedi",
+    "balance": -4076,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_34",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Erdinç ÖZDEMİR",
+    "aptNo": "34",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_35",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Mustafa KIYOĞLU",
+    "aptNo": "35",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_36",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Murat DANA",
+    "aptNo": "36",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_37",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Ziya SABİTOĞLU",
+    "aptNo": "37",
+    "phone": "Girilmedi",
+    "balance": -4789.69,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_38",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Dursun ABALI",
+    "aptNo": "38",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_39",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Serdar KARAŞ",
+    "aptNo": "39",
+    "phone": "Girilmedi",
+    "balance": 0.63,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_40",
+    "apartmentId": "apt_elitkent_b",
+    "name": "Cemil TÜRKMEN",
+    "aptNo": "40",
+    "phone": "Girilmedi",
+    "balance": 0,
+    "type": "ev_sahibi"
+  },
+  {
+    "id": "elitkent_41",
+    "apartmentId": "apt_elitkent_b",
+    "name": "HASAN TEKİN",
+    "aptNo": "41",
+    "phone": "Girilmedi",
+    "balance": -5056.91,
+    "type": "ev_sahibi"
+  }
 ];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: 't1', apartmentId: 'apt_1', type: 'income', amount: 500, description: 'Aidat Ödemesi (Daire 1)', date: new Date('2026-05-01'), residentId: '1' },
-  { id: 't2', apartmentId: 'apt_1', type: 'expense', amount: 1200, description: 'Asansör Bakımı', date: new Date('2026-05-05') },
-  { id: 't3', type: 'personnel_expense', amount: 17000, description: 'Hasan Usta Maaş', date: new Date('2026-05-01'), staffId: 's1' },
-  { id: 't4', type: 'other_expense', amount: 500, description: 'Yazılım Lisans', date: new Date('2026-05-02') },
+  {
+    "id": "t1",
+    "apartmentId": "apt_1",
+    "type": "income",
+    "amount": 500,
+    "description": "Aidat Ödemesi (Daire 1)",
+    "date": new Date('2026-05-01'),
+    "residentId": "1"
+  },
+  {
+    "id": "t2",
+    "apartmentId": "apt_1",
+    "type": "expense",
+    "amount": 1200,
+    "description": "Asansör Bakımı",
+    "date": new Date('2026-05-05')
+  },
+  {
+    "id": "t3",
+    "type": "personnel_expense",
+    "amount": 17000,
+    "description": "Hasan Usta Maaş",
+    "date": new Date('2026-05-01'),
+    "staffId": "s1"
+  },
+  {
+    "id": "t4",
+    "type": "other_expense",
+    "amount": 500,
+    "description": "Yazılım Lisans",
+    "date": new Date('2026-05-02')
+  },
+  {
+    "id": "t_elitkent_1",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 5110.54,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_1"
+  },
+  {
+    "id": "t_elitkent_2",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4439,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-16'),
+    "residentId": "elitkent_2"
+  },
+  {
+    "id": "t_elitkent_3",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4109.5,
+    "description": "Ocak Ödemesi (GİDER FİŞ 16)",
+    "date": new Date('2025-12-21'),
+    "residentId": "elitkent_3"
+  },
+  {
+    "id": "t_elitkent_4",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 5486.5,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_4"
+  },
+  {
+    "id": "t_elitkent_5",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 5835,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-17'),
+    "residentId": "elitkent_5"
+  },
+  {
+    "id": "t_elitkent_6",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4500,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_6"
+  },
+  {
+    "id": "t_elitkent_7",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3036.5,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_7"
+  },
+  {
+    "id": "t_elitkent_8",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3102,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_8"
+  },
+  {
+    "id": "t_elitkent_9",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3500,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_9"
+  },
+  {
+    "id": "t_elitkent_10",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 5298.1,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_10"
+  },
+  {
+    "id": "t_elitkent_11",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 100,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_11"
+  },
+  {
+    "id": "t_elitkent_12",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4187.5,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-21'),
+    "residentId": "elitkent_12"
+  },
+  {
+    "id": "t_elitkent_13",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3358,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-14'),
+    "residentId": "elitkent_13"
+  },
+  {
+    "id": "t_elitkent_14",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3358,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_14"
+  },
+  {
+    "id": "t_elitkent_15",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4000,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_15"
+  },
+  {
+    "id": "t_elitkent_16",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3243,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-24'),
+    "residentId": "elitkent_16"
+  },
+  {
+    "id": "t_elitkent_17",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3858,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_17"
+  },
+  {
+    "id": "t_elitkent_18",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4892,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_18"
+  },
+  {
+    "id": "t_elitkent_19",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 5005,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-17'),
+    "residentId": "elitkent_19"
+  },
+  {
+    "id": "t_elitkent_20",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4988.5,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_20"
+  },
+  {
+    "id": "t_elitkent_21",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3700,
+    "description": "Ocak Ödemesi (GELİR FİŞ 16)",
+    "date": new Date('2026-01-21'),
+    "residentId": "elitkent_21"
+  },
+  {
+    "id": "t_elitkent_23",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4022,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_23"
+  },
+  {
+    "id": "t_elitkent_24",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3323,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_24"
+  },
+  {
+    "id": "t_elitkent_25",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3358,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_25"
+  },
+  {
+    "id": "t_elitkent_26",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4500,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-17'),
+    "residentId": "elitkent_26"
+  },
+  {
+    "id": "t_elitkent_27",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 5370,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_27"
+  },
+  {
+    "id": "t_elitkent_28",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4025,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_28"
+  },
+  {
+    "id": "t_elitkent_29",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4335.5,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-14'),
+    "residentId": "elitkent_29"
+  },
+  {
+    "id": "t_elitkent_30",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3877.2,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_30"
+  },
+  {
+    "id": "t_elitkent_31",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3100,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_31"
+  },
+  {
+    "id": "t_elitkent_32",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4000,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-27'),
+    "residentId": "elitkent_32"
+  },
+  {
+    "id": "t_elitkent_34",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3904,
+    "description": "Ocak Ödemesi (BANKA-GİDER FİŞ 20)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_34"
+  },
+  {
+    "id": "t_elitkent_35",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4022,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_35"
+  },
+  {
+    "id": "t_elitkent_36",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 3710,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_36"
+  },
+  {
+    "id": "t_elitkent_37",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 2850,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-03'),
+    "residentId": "elitkent_37"
+  },
+  {
+    "id": "t_elitkent_38",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 10664.55,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-19'),
+    "residentId": "elitkent_38"
+  },
+  {
+    "id": "t_elitkent_39",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4015,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-14'),
+    "residentId": "elitkent_39"
+  },
+  {
+    "id": "t_elitkent_40",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 4472.5,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-15'),
+    "residentId": "elitkent_40"
+  },
+  {
+    "id": "t_elitkent_41",
+    "apartmentId": "apt_elitkent_b",
+    "type": "income",
+    "amount": 1000,
+    "description": "Ocak Ödemesi (BANKA)",
+    "date": new Date('2026-01-21'),
+    "residentId": "elitkent_41"
+  }
 ];
 
 const INITIAL_STAFFS: Staff[] = [

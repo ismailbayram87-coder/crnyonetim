@@ -11,29 +11,28 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
 
-  const buildingName = "Güneş Apartmanı";
-  const myBalance = -1250; // Aidat + Doğalgaz borcu örneği
+  const buildingName = "Elitkent Sitesi B Blok";
+  const myBalance = 0; // Kalan borç sıfırdır
   
   const transactions = [
-    { id: 1, type: 'gider', amount: 1200, date: '05 Mayıs 2026', title: 'Asansör Bakımı' },
-    { id: 2, type: 'gider', amount: 350, date: '01 Mayıs 2026', title: 'Ortak Elektrik' },
-    { id: 3, type: 'gider', amount: 800, date: '28 Nisan 2026', title: 'Temizlik Gideri' },
+    { id: 1, type: 'gider', amount: 1200, date: '05 Ocak 2026', title: 'Asansör Bakımı' },
+    { id: 2, type: 'gider', amount: 350, date: '01 Ocak 2026', title: 'Ortak Elektrik' },
+    { id: 3, type: 'gider', amount: 800, date: '28 Aralık 2025', title: 'Temizlik Gideri' },
   ];
 
   const announcements = [
-    { id: 1, date: '10 Mayıs 2026', title: 'Asansör Bakımı Hakkında', content: 'Asansörümüz 12 Mayıs günü saat 10:00-14:00 arası bakıma alınacaktır.' },
-    { id: 2, date: '01 Mayıs 2026', title: 'Aidat Ödemeleri', content: 'Lütfen aidat ödemelerinizi ayın 15\'ine kadar yapınız.' },
+    { id: 1, date: '20 Ocak 2026', title: 'Ocak Ayı Aidat ve Yakıt Paylaşımı', content: 'Değerli sakinlerimiz, Ocak ayı aidat ve doğalgaz yakıt paylaştırma listesi panoya asılmıştır. Son ödeme tarihi 31 Ocak 2026\'dır.' },
+    { id: 2, date: '01 Ocak 2026', title: 'Yeni Aidat Dönemi', content: '2026 yılı itibarıyla B Blok aylık sabit aidat tutarı 1.000 ₺ olarak belirlenmiştir.' },
   ];
 
   const receipts = [
-    { id: 1, title: 'Nisan Ayı Elektrik', date: '01 Mayıs 2026', image: 'https://via.placeholder.com/400x600.png?text=Elektrik+Faturasi' },
-    { id: 2, title: 'Nisan Ayı Su', date: '02 Mayıs 2026', image: 'https://via.placeholder.com/400x600.png?text=Su+Faturasi' },
+    { id: 1, title: 'Ocak Ayı Ortak Elektrik', date: '15 Ocak 2026', image: 'https://via.placeholder.com/400x600.png?text=Elektrik+Faturasi' },
+    { id: 2, title: 'Ocak Ayı Asansör Bakım Faturası', date: '12 Ocak 2026', image: 'https://via.placeholder.com/400x600.png?text=Asansor+Bakim' },
   ];
 
   const gasDocuments = [
-    { id: 1, title: 'Mayıs 2026 Doğalgaz Paylaşımı', type: 'excel', date: '05 Mayıs 2026', size: '24 KB' },
-    { id: 2, title: 'Nisan 2026 Doğalgaz Paylaşımı', type: 'pdf', date: '05 Nisan 2026', size: '1.2 MB' },
-    { id: 3, title: 'Mart 2026 Doğalgaz Paylaşımı', type: 'excel', date: '05 Mart 2026', size: '23 KB' },
+    { id: 1, title: 'Ocak 2026 Doğalgaz Paylaşım Listesi', type: 'excel', date: '10 Ocak 2026', size: '28 KB' },
+    { id: 2, title: 'Ocak 2026 Doğalgaz Ana Faturası', type: 'pdf', date: '08 Ocak 2026', size: '1.4 MB' },
   ];
 
   const renderContent = () => {
@@ -121,12 +120,14 @@ export default function App() {
             {/* Profil Künyesi */}
             <View style={[styles.balanceCard, { padding: 20, marginBottom: 20 }]}>
               <Ionicons name="person-circle" size={64} color="#10b981" style={{ marginBottom: 12 }} />
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#f8fafc', marginBottom: 4 }}>Ayşe Kaya</Text>
-              <Text style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>Daire 2 • Kiracı</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#f8fafc', marginBottom: 4 }}>Recep BEKE</Text>
+              <Text style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>Daire 2 • Ev Sahibi</Text>
               
               <View style={{ width: '100%', borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 16, alignItems: 'center' }}>
                 <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>GÜNCEL HESAP BAKİYENİZ</Text>
-                <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#ff6b6b' }}>{Math.abs(myBalance)} ₺ Borç</Text>
+                <Text style={{ fontSize: 28, fontWeight: 'bold', color: myBalance < 0 ? '#ff6b6b' : '#10b981' }}>
+                  {myBalance < 0 ? `${Math.abs(myBalance)} ₺ Borç` : '0 ₺ (Borç Yoktur)'}
+                </Text>
               </View>
             </View>
 
@@ -143,11 +144,11 @@ export default function App() {
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#94a3b8', fontSize: 13 }}>Telefon</Text>
-                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>0532 123 45 67</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>Girilmedi</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#94a3b8', fontSize: 13 }}>Aylık Sabit Aidat</Text>
-                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>500 ₺ / Ay</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>1.000 ₺ / Ay</Text>
               </View>
             </View>
 
@@ -156,12 +157,9 @@ export default function App() {
             
             <View style={{ marginBottom: 30 }}>
               {[
-                { id: '1', date: '15 Mayıs 2026', desc: 'Mayıs: Daire Aidat Borcu', amount: -500, type: 'borc' },
-                { id: '2', date: '05 Mayıs 2026', desc: 'Isınma: Yakıt Paylaştırma Borcu', amount: -750, type: 'borc' },
-                { id: '3', date: '15 Nisan 2026', desc: 'Nisan: Daire Aidat Borcu', amount: -500, type: 'borc' },
-                { id: '4', date: '12 Nisan 2026', desc: 'Nisan: Aidat Tahsilatı (Kredi Kartı)', amount: 500, type: 'odeme' },
-                { id: '5', date: '15 Mart 2026', desc: 'Mart: Daire Aidat Borcu', amount: -500, type: 'borc' },
-                { id: '6', date: '10 Mart 2026', desc: 'Mart: Aidat Tahsilatı (Banka Havalesi)', amount: 500, type: 'odeme' },
+                { id: '1', date: '16 Ocak 2026', desc: 'Ocak: Aidat ve Yakıt Tahsilatı (Banka Havalesi)', amount: 4439, type: 'odeme' },
+                { id: '2', date: '15 Ocak 2026', desc: 'Ocak: Sabit Daire Aidat Borcu', amount: -1000, type: 'borc' },
+                { id: '3', date: '05 Ocak 2026', desc: 'Isınma: Doğalgaz Gideri Borcu', amount: -3439, type: 'borc' },
               ].map(item => (
                 <View key={item.id} style={[styles.listItem, { paddingVertical: 12, marginBottom: 8 }]}>
                   <View style={styles.listIcon}>
@@ -198,7 +196,7 @@ export default function App() {
       <TouchableOpacity style={styles.header} onPress={() => setActiveTab('profile')}>
         <View>
           <Text style={styles.headerSubtitle}>{buildingName}</Text>
-          <Text style={styles.headerTitle}>Daire 2 - Ayşe Kaya (Kiracı)</Text>
+          <Text style={styles.headerTitle}>Daire 2 - Recep BEKE (Ev Sahibi)</Text>
         </View>
         <Ionicons name="person-circle-outline" size={36} color={activeTab === 'profile' ? '#10b981' : '#fff'} />
       </TouchableOpacity>
