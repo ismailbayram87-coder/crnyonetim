@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Image, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-type Tab = 'home' | 'announcements' | 'receipts' | 'gas';
+type Tab = 'home' | 'announcements' | 'receipts' | 'gas' | 'profile';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -113,6 +113,80 @@ export default function App() {
             ))}
           </ScrollView>
         );
+      case 'profile':
+        return (
+          <ScrollView style={styles.content}>
+            <Text style={styles.sectionTitle}>Hesap Kartım & Cari Detayı</Text>
+            
+            {/* Profil Künyesi */}
+            <View style={[styles.balanceCard, { padding: 20, marginBottom: 20 }]}>
+              <Ionicons name="person-circle" size={64} color="#10b981" style={{ marginBottom: 12 }} />
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#f8fafc', marginBottom: 4 }}>Ayşe Kaya</Text>
+              <Text style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>Daire 2 • Kiracı</Text>
+              
+              <View style={{ width: '100%', borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 16, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>GÜNCEL HESAP BAKİYENİZ</Text>
+                <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#ff6b6b' }}>{Math.abs(myBalance)} ₺ Borç</Text>
+              </View>
+            </View>
+
+            {/* Daire & İletişim Detayları */}
+            <View style={[styles.listItem, { flexDirection: 'column', alignItems: 'stretch', gap: 12, marginBottom: 20 }]}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#334155', paddingBottom: 8 }}>Kişisel & Daire Bilgileri</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#94a3b8', fontSize: 13 }}>Bağlı Bina</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>{buildingName}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#94a3b8', fontSize: 13 }}>Daire No</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>Daire 2</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#94a3b8', fontSize: 13 }}>Telefon</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>0532 123 45 67</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#94a3b8', fontSize: 13 }}>Aylık Sabit Aidat</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>500 ₺ / Ay</Text>
+              </View>
+            </View>
+
+            {/* Cari Hesap Geçmişi */}
+            <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 12 }]}>Hesap Ekstresi (Cari Hareketler)</Text>
+            
+            <View style={{ marginBottom: 30 }}>
+              {[
+                { id: '1', date: '15 Mayıs 2026', desc: 'Mayıs: Daire Aidat Borcu', amount: -500, type: 'borc' },
+                { id: '2', date: '05 Mayıs 2026', desc: 'Isınma: Yakıt Paylaştırma Borcu', amount: -750, type: 'borc' },
+                { id: '3', date: '15 Nisan 2026', desc: 'Nisan: Daire Aidat Borcu', amount: -500, type: 'borc' },
+                { id: '4', date: '12 Nisan 2026', desc: 'Nisan: Aidat Tahsilatı (Kredi Kartı)', amount: 500, type: 'odeme' },
+                { id: '5', date: '15 Mart 2026', desc: 'Mart: Daire Aidat Borcu', amount: -500, type: 'borc' },
+                { id: '6', date: '10 Mart 2026', desc: 'Mart: Aidat Tahsilatı (Banka Havalesi)', amount: 500, type: 'odeme' },
+              ].map(item => (
+                <View key={item.id} style={[styles.listItem, { paddingVertical: 12, marginBottom: 8 }]}>
+                  <View style={styles.listIcon}>
+                    <Ionicons 
+                      name={item.type === 'odeme' ? 'arrow-down-circle' : 'arrow-up-circle'} 
+                      size={24} 
+                      color={item.type === 'odeme' ? '#10b981' : '#ff6b6b'} 
+                    />
+                  </View>
+                  <View style={styles.listBody}>
+                    <Text style={[styles.listTitle, { fontSize: 14 }]}>{item.desc}</Text>
+                    <Text style={styles.listSubtitle}>{item.date}</Text>
+                  </View>
+                  <Text style={{ 
+                    fontSize: 14, 
+                    fontWeight: 'bold', 
+                    color: item.type === 'odeme' ? '#10b981' : '#ff6b6b' 
+                  }}>
+                    {item.amount > 0 ? `+${item.amount}` : item.amount} ₺
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        );
     }
   };
 
@@ -121,13 +195,13 @@ export default function App() {
       <StatusBar barStyle="light-content" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <TouchableOpacity style={styles.header} onPress={() => setActiveTab('profile')}>
         <View>
           <Text style={styles.headerSubtitle}>{buildingName}</Text>
           <Text style={styles.headerTitle}>Daire 2 - Ayşe Kaya (Kiracı)</Text>
         </View>
-        <Ionicons name="person-circle-outline" size={36} color="#fff" />
-      </View>
+        <Ionicons name="person-circle-outline" size={36} color={activeTab === 'profile' ? '#10b981' : '#fff'} />
+      </TouchableOpacity>
 
       {/* Main Content */}
       <View style={styles.main}>
@@ -154,6 +228,11 @@ export default function App() {
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('announcements')}>
           <Ionicons name={activeTab === 'announcements' ? 'megaphone' : 'megaphone-outline'} size={24} color={activeTab === 'announcements' ? '#3b82f6' : '#94a3b8'} />
           <Text style={[styles.tabText, activeTab === 'announcements' && styles.tabTextActive]}>Duyurular</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('profile')}>
+          <Ionicons name={activeTab === 'profile' ? 'person-circle' : 'person-circle-outline'} size={24} color={activeTab === 'profile' ? '#10b981' : '#94a3b8'} />
+          <Text style={[styles.tabText, activeTab === 'profile' && { color: '#10b981' }]}>Hesabım</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

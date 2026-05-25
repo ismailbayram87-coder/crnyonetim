@@ -265,3 +265,125 @@ tr:hover td {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
+
+/* New Modern UI Elements */
+.badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.badge-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success-color);
+}
+.badge-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-color);
+}
+.badge-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color);
+}
+.badge-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-color);
+}
+
+.preview-table {
+  width: 100%;
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 12px;
+  margin-bottom: 24px;
+}
+
+.preview-table th {
+  background: rgba(15, 23, 42, 0.4);
+  font-size: 13px;
+  padding: 12px;
+}
+
+.preview-table td {
+  padding: 12px;
+  font-size: 13px;
+}
+
+.paste-area {
+  min-height: 100px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+/* Printable layout styling */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    background-image: none !important;
+    font-size: 12pt;
+  }
+
+  .sidebar,
+  .main-content > header,
+  .main-content > div > header,
+  button,
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-danger,
+  .modal-overlay,
+  .sidebar-header,
+  .nav-item {
+    display: none !important;
+  }
+
+  .main-content {
+    padding: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .glass-panel {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+  }
+
+  table {
+    border: 1px solid #ddd !important;
+  }
+
+  th, td {
+    border-bottom: 1px solid #ddd !important;
+    color: black !important;
+    padding: 8px !important;
+  }
+
+  .dashboard-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+
+  .stat-card {
+    border: 1px solid #ccc !important;
+    padding: 15px !important;
+    flex: 1 !important;
+  }
+
+  .stat-card h3 {
+    color: #555 !important;
+  }
+
+  .stat-card .value {
+    color: black !important;
+    font-size: 20pt !important;
+  }
+}
