@@ -17,11 +17,12 @@ import {
   Printer,
   Download,
   Upload,
-  Activity
+  Activity,
+  Grid
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import';
+type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import' | 'sheet';
 
 interface Apartment {
   id: string;
@@ -58,6 +59,13 @@ interface Resident {
   phone: string;
   balance: number;
   type: 'kiraci' | 'ev_sahibi';
+  dues?: number;
+  previousDebt?: number;
+  gasDelay?: number;
+  gasOther?: number;
+  paidAmount?: number;
+  paymentChannel?: string;
+  paymentDate?: string;
 }
 
 interface StaffJob {
@@ -90,7 +98,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "1",
     "phone": "05551234567",
     "balance": 0,
-    "type": "kiraci"
+    "type": "kiraci",
+    "dues": 500,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 0,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "1_owner",
@@ -99,7 +114,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "1",
     "phone": "05301234567",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 500,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 0,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "2",
@@ -108,7 +130,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "2",
     "phone": "05321234567",
     "balance": -500,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 500,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 0,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "3",
@@ -117,7 +146,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "1",
     "phone": "05441234567",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 750,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 0,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "4",
@@ -126,7 +162,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "2",
     "phone": "05331234567",
     "balance": -200,
-    "type": "kiraci"
+    "type": "kiraci",
+    "dues": 750,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 0,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "elitkent_1",
@@ -135,7 +178,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "1",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 4110.54,
+    "paidAmount": 5110.54,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19-23.01.2026"
   },
   {
     "id": "elitkent_2",
@@ -144,7 +194,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "2",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3439,
+    "paidAmount": 4439,
+    "paymentChannel": "BANKA",
+    "paymentDate": "16.01.2026"
   },
   {
     "id": "elitkent_3",
@@ -153,7 +210,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "3",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3109.5,
+    "paidAmount": 4109.5,
+    "paymentChannel": "GİDER FİŞ 16",
+    "paymentDate": "21.12.2025"
   },
   {
     "id": "elitkent_4",
@@ -162,7 +226,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "4",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 4486.5,
+    "paidAmount": 5486.5,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_5",
@@ -171,7 +242,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "5",
     "phone": "Girilmedi",
     "balance": -0.41,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 29.01,
+    "gasDelay": 2.9,
+    "gasOther": 4803.5,
+    "paidAmount": 5835,
+    "paymentChannel": "BANKA",
+    "paymentDate": "17.01.2026"
   },
   {
     "id": "elitkent_6",
@@ -180,7 +258,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "6",
     "phone": "Girilmedi",
     "balance": -0.59,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -0.41,
+    "gasDelay": 0,
+    "gasOther": 3501,
+    "paidAmount": 4500,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_7",
@@ -189,7 +274,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "7",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2036.5,
+    "paidAmount": 3036.5,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_8",
@@ -198,7 +290,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "8",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2102,
+    "paidAmount": 3102,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_9",
@@ -207,7 +306,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "9",
     "phone": "Girilmedi",
     "balance": -993.56,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -7.44,
+    "gasDelay": 0,
+    "gasOther": 3501,
+    "paidAmount": 3500,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_10",
@@ -216,7 +322,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "10",
     "phone": "Girilmedi",
     "balance": -3.39,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 72.26,
+    "gasDelay": 7.23,
+    "gasOther": 4222,
+    "paidAmount": 5298.1,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_11",
@@ -225,7 +338,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "11",
     "phone": "Girilmedi",
     "balance": -6114.1,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 2888.73,
+    "gasDelay": 288.87,
+    "gasOther": 2036.5,
+    "paidAmount": 100,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_12",
@@ -234,7 +354,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "12",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3187.5,
+    "paidAmount": 4187.5,
+    "paymentChannel": "BANKA",
+    "paymentDate": "21.01.2026"
   },
   {
     "id": "elitkent_13",
@@ -243,7 +370,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "13",
     "phone": "Girilmedi",
     "balance": 0.22,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -0.22,
+    "gasDelay": 0,
+    "gasOther": 2358,
+    "paidAmount": 3358,
+    "paymentChannel": "BANKA",
+    "paymentDate": "14.01.2026"
   },
   {
     "id": "elitkent_14",
@@ -252,7 +386,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "14",
     "phone": "Girilmedi",
     "balance": 0.39,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -0.39,
+    "gasDelay": 0,
+    "gasOther": 2358,
+    "paidAmount": 3358,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_15",
@@ -261,7 +402,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "15",
     "phone": "Girilmedi",
     "balance": 17.04,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -39.04,
+    "gasDelay": 0,
+    "gasOther": 3022,
+    "paidAmount": 4000,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_16",
@@ -270,7 +418,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "16",
     "phone": "Girilmedi",
     "balance": 0.19,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0.74,
+    "gasDelay": 0.07,
+    "gasOther": 2242,
+    "paidAmount": 3243,
+    "paymentChannel": "BANKA",
+    "paymentDate": "24.01.2026"
   },
   {
     "id": "elitkent_17",
@@ -279,7 +434,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "17",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2858,
+    "paidAmount": 3858,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_18",
@@ -288,7 +450,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "18",
     "phone": "Girilmedi",
     "balance": 0.07,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -0.57,
+    "gasDelay": 0,
+    "gasOther": 3892.5,
+    "paidAmount": 4892,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_19",
@@ -297,7 +466,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "19",
     "phone": "Girilmedi",
     "balance": 4.34,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 889.69,
+    "gasDelay": 88.97,
+    "gasOther": 3022,
+    "paidAmount": 5005,
+    "paymentChannel": "BANKA",
+    "paymentDate": "17.01.2026"
   },
   {
     "id": "elitkent_20",
@@ -306,7 +482,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "20",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3988.5,
+    "paidAmount": 4988.5,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_21",
@@ -315,7 +498,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "21",
     "phone": "Girilmedi",
     "balance": 6.75,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -0.75,
+    "gasDelay": 0,
+    "gasOther": 2694,
+    "paidAmount": 3700,
+    "paymentChannel": "GELİR FİŞ 16",
+    "paymentDate": "21.01.2026"
   },
   {
     "id": "elitkent_22",
@@ -324,7 +514,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "22",
     "phone": "Girilmedi",
     "balance": -3358,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2358,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "elitkent_23",
@@ -333,7 +530,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "23",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3022,
+    "paidAmount": 4022,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19-21.01.2026"
   },
   {
     "id": "elitkent_24",
@@ -342,7 +546,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "24",
     "phone": "Girilmedi",
     "balance": 0.67,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -2.67,
+    "gasDelay": 0,
+    "gasOther": 2325,
+    "paidAmount": 3323,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_25",
@@ -351,7 +562,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "25",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2358,
+    "paidAmount": 3358,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_26",
@@ -360,7 +578,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "26",
     "phone": "Girilmedi",
     "balance": 1.25,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -2.25,
+    "gasDelay": 0,
+    "gasOther": 3501,
+    "paidAmount": 4500,
+    "paymentChannel": "BANKA",
+    "paymentDate": "17.01.2026"
   },
   {
     "id": "elitkent_27",
@@ -369,7 +594,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "27",
     "phone": "Girilmedi",
     "balance": 3.02,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -0.52,
+    "gasDelay": 0,
+    "gasOther": 4367.5,
+    "paidAmount": 5370,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_28",
@@ -378,7 +610,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "28",
     "phone": "Girilmedi",
     "balance": 3,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3022,
+    "paidAmount": 4025,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_29",
@@ -387,7 +626,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "29",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3335.5,
+    "paidAmount": 4335.5,
+    "paymentChannel": "BANKA",
+    "paymentDate": "14.01.2026"
   },
   {
     "id": "elitkent_30",
@@ -396,7 +642,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "30",
     "phone": "Girilmedi",
     "balance": 0.2,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2877,
+    "paidAmount": 3877.2,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15-19.01.2026"
   },
   {
     "id": "elitkent_31",
@@ -405,7 +658,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "31",
     "phone": "Girilmedi",
     "balance": 48.04,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 14.05,
+    "gasDelay": 1.41,
+    "gasOther": 2036.5,
+    "paidAmount": 3100,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_32",
@@ -414,7 +674,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "32",
     "phone": "Girilmedi",
     "balance": 10.52,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -32.52,
+    "gasDelay": 0,
+    "gasOther": 3022,
+    "paidAmount": 4000,
+    "paymentChannel": "BANKA",
+    "paymentDate": "27.01.2026"
   },
   {
     "id": "elitkent_33",
@@ -423,7 +690,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "33",
     "phone": "Girilmedi",
     "balance": -4076,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3076,
+    "paidAmount": 0,
+    "paymentChannel": "",
+    "paymentDate": ""
   },
   {
     "id": "elitkent_34",
@@ -432,7 +706,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "34",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2904,
+    "paidAmount": 3904,
+    "paymentChannel": "BANKA-GİDER FİŞ 20",
+    "paymentDate": "15-21.01.2026"
   },
   {
     "id": "elitkent_35",
@@ -441,7 +722,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "35",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3022,
+    "paidAmount": 4022,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_36",
@@ -450,7 +738,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "36",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 2710,
+    "paidAmount": 3710,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_37",
@@ -459,7 +754,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "37",
     "phone": "Girilmedi",
     "balance": -4789.69,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 2853.35,
+    "gasDelay": 285.34,
+    "gasOther": 3501,
+    "paidAmount": 2850,
+    "paymentChannel": "BANKA",
+    "paymentDate": "03.01.2026"
   },
   {
     "id": "elitkent_38",
@@ -468,7 +770,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "38",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 4225.5,
+    "gasDelay": 422.55,
+    "gasOther": 5016.5,
+    "paidAmount": 10664.55,
+    "paymentChannel": "BANKA",
+    "paymentDate": "19.01.2026"
   },
   {
     "id": "elitkent_39",
@@ -477,7 +786,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "39",
     "phone": "Girilmedi",
     "balance": 0.63,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": -7.63,
+    "gasDelay": 0,
+    "gasOther": 3022,
+    "paidAmount": 4015,
+    "paymentChannel": "BANKA",
+    "paymentDate": "14.01.2026"
   },
   {
     "id": "elitkent_40",
@@ -486,7 +802,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "40",
     "phone": "Girilmedi",
     "balance": 0,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 1000,
+    "previousDebt": 0,
+    "gasDelay": 0,
+    "gasOther": 3472.5,
+    "paidAmount": 4472.5,
+    "paymentChannel": "BANKA",
+    "paymentDate": "15.01.2026"
   },
   {
     "id": "elitkent_41",
@@ -495,7 +818,14 @@ const INITIAL_RESIDENTS: Resident[] = [
     "aptNo": "41",
     "phone": "Girilmedi",
     "balance": -5056.91,
-    "type": "ev_sahibi"
+    "type": "ev_sahibi",
+    "dues": 0,
+    "previousDebt": 5506.28,
+    "gasDelay": 550.63,
+    "gasOther": 0,
+    "paidAmount": 1000,
+    "paymentChannel": "BANKA",
+    "paymentDate": "21.01.2026"
   }
 ];
 
@@ -1029,6 +1359,18 @@ export default function App() {
   const [resType, setResType] = useState<'kiraci'|'ev_sahibi'>('kiraci');
   const [resAptId, setResAptId] = useState(apartments[0]?.id || '');
 
+  // Muhasebe Defteri (Spreadsheet) States
+  const [sheetSearch, setSheetSearch] = useState('');
+  const [isSheetEditModalOpen, setIsSheetEditModalOpen] = useState(false);
+  const [sheetResId, setSheetResId] = useState<string | null>(null);
+  const [sheetDues, setSheetDues] = useState('');
+  const [sheetPrevDebt, setSheetPrevDebt] = useState('');
+  const [sheetGasDelay, setSheetGasDelay] = useState('');
+  const [sheetGasOther, setSheetGasOther] = useState('');
+  const [sheetPaidAmount, setSheetPaidAmount] = useState('');
+  const [sheetChannel, setSheetChannel] = useState('');
+  const [sheetDate, setSheetDate] = useState('');
+
   // Debt Form
   const [debtType, setDebtType] = useState<'aidat_kiraci' | 'demirbas_evsahibi'>('aidat_kiraci');
   const [debtAmount, setDebtAmount] = useState('');
@@ -1544,6 +1886,123 @@ export default function App() {
     setIsResidentModalOpen(false);
   };
 
+  const openSheetEditModal = (resident: Resident) => {
+    setSheetResId(resident.id);
+    setSheetDues(resident.dues !== undefined ? resident.dues.toString() : '');
+    setSheetPrevDebt(resident.previousDebt !== undefined ? resident.previousDebt.toString() : '');
+    setSheetGasDelay(resident.gasDelay !== undefined ? resident.gasDelay.toString() : '');
+    setSheetGasOther(resident.gasOther !== undefined ? resident.gasOther.toString() : '');
+    setSheetPaidAmount(resident.paidAmount !== undefined ? resident.paidAmount.toString() : '');
+    setSheetChannel(resident.paymentChannel || '');
+    setSheetDate(resident.paymentDate || '');
+    setIsSheetEditModalOpen(true);
+  };
+
+  const handleSaveSheetResident = () => {
+    if (!sheetResId) return;
+    const duesVal = parseFloat(sheetDues) || 0;
+    const prevDebtVal = parseFloat(sheetPrevDebt) || 0;
+    const gasDelayVal = parseFloat(sheetGasDelay) || 0;
+    const gasOtherVal = parseFloat(sheetGasOther) || 0;
+    const paidAmountVal = parseFloat(sheetPaidAmount) || 0;
+    
+    const totalVal = duesVal + prevDebtVal + gasDelayVal + gasOtherVal;
+    const remainingVal = totalVal - paidAmountVal;
+    const newBalance = -remainingVal;
+
+    setResidents(residents.map(r => r.id === sheetResId ? {
+      ...r,
+      dues: duesVal,
+      previousDebt: prevDebtVal,
+      gasDelay: gasDelayVal,
+      gasOther: gasOtherVal,
+      paidAmount: paidAmountVal,
+      paymentChannel: sheetChannel,
+      paymentDate: sheetDate,
+      balance: newBalance
+    } : r));
+
+    // Keep transactions synced
+    if (paidAmountVal > 0) {
+      const existingTIndex = transactions.findIndex(t => t.residentId === sheetResId && t.apartmentId === selectedAptId);
+      
+      let parsedDate = new Date();
+      if (sheetDate && sheetDate.includes('.')) {
+        const parts = sheetDate.split('.');
+        if (parts.length >= 2) {
+          const day = parts[0].trim().padStart(2, '0');
+          const month = parts[1].trim().padStart(2, '0');
+          const year = parts[2] ? parts[2].trim() : '2026';
+          parsedDate = new Date(`${year}-${month}-${day}`);
+        }
+      }
+
+      if (existingTIndex !== -1) {
+        const updatedT = [...transactions];
+        updatedT[existingTIndex] = {
+          ...updatedT[existingTIndex],
+          amount: paidAmountVal,
+          description: `Ocak Ödemesi (${sheetChannel || 'BANKA'})`,
+          date: parsedDate
+        };
+        setTransactions(updatedT);
+      } else {
+        const newT = {
+          id: Math.random().toString(),
+          apartmentId: selectedAptId || 'apt_elitkent_b',
+          type: 'income' as const,
+          amount: paidAmountVal,
+          description: `Ocak Ödemesi (${sheetChannel || 'BANKA'})`,
+          date: parsedDate,
+          residentId: sheetResId
+        };
+        setTransactions([...transactions, newT]);
+      }
+    } else {
+      setTransactions(transactions.filter(t => !(t.residentId === sheetResId && t.apartmentId === selectedAptId)));
+    }
+
+    setIsSheetEditModalOpen(false);
+  };
+
+  const handleExportSheetExcel = () => {
+    if (!selectedAptId) return;
+    const apt = apartments.find(a => a.id === selectedAptId);
+    if (!apt) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // UTF-8 BOM
+    csvContent += `Muhasebe Defteri: ${apt.name}\r\n`;
+    csvContent += `Tarih: ${format(new Date(), 'dd.MM.yyyy')}\r\n\r\n`;
+
+    csvContent += "DAIRE NO;ADI SOYADI;AIDAT;ESKI BORC;DOGALGAZ GECIKMESI;DOGALGAZ DIGER GIDER;TOPLAM;ODENEN;KALAN;ODEME KANALI;ODEME TARIHI\r\n";
+    
+    const sorted = [...residents.filter(r => r.apartmentId === selectedAptId)].sort((a,b) => {
+      const aNum = parseInt(a.aptNo) || 0;
+      const bNum = parseInt(b.aptNo) || 0;
+      return aNum - bNum;
+    });
+
+    sorted.forEach(r => {
+      const dues = r.dues || 0;
+      const prev = r.previousDebt || 0;
+      const delay = r.gasDelay || 0;
+      const other = r.gasOther || 0;
+      const total = dues + prev + delay + other;
+      const paid = r.paidAmount || 0;
+      const remaining = total - paid;
+      
+      csvContent += `${r.aptNo};${r.name};₺${dues};₺${prev};₺${delay};₺${other};₺${total};₺${paid};₺${remaining};${r.paymentChannel || ''};${r.paymentDate || ''}\r\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${apt.name.replace(/ /g, "_")}_muhasebe_defteri.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleAddDebt = () => {
     if (!selectedAptId) {
       alert("Borçlandırma yapmak için önce spesifik bir bina seçmelisiniz.");
@@ -1743,6 +2202,10 @@ export default function App() {
               <Users size={20} />
               <span>Sakinler & Borçlandırma</span>
             </button>
+            <button className={`nav-item ${activeTab === 'sheet' ? 'active' : ''}`} onClick={() => setActiveTab('sheet')}>
+              <Grid size={20} />
+              <span>Muhasebe Defteri</span>
+            </button>
             <button className={`nav-item ${activeTab === 'announcements' ? 'active' : ''}`} onClick={() => setActiveTab('announcements')}>
               <Bell size={20} />
               <span>Duyurular</span>
@@ -1913,6 +2376,157 @@ export default function App() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* MUHASEBE DEFTERI TAB */}
+        {activeTab === 'sheet' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div>
+                <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Muhasebe Defteri</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
+                  Bina sakinlerinin tüm aidat, doğalgaz ısınma borçlanmaları ve tahsilat dökümünü içeren detaylı cari takip çizelgesi.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={handleExportSheetExcel}>
+                  <Download size={18} /> Excel Olarak İndir
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Daire no veya sakin adı ile ara..." 
+                value={sheetSearch}
+                onChange={(e) => setSheetSearch(e.target.value)}
+                style={{ maxWidth: '350px', marginBottom: 0 }}
+              />
+            </div>
+
+            <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
+              <table style={{ fontSize: '13px', minWidth: '1100px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '80px' }}>Daire No</th>
+                    <th>Adı Soyadı</th>
+                    <th>Rol</th>
+                    <th style={{ textAlign: 'right' }}>Aidat</th>
+                    <th style={{ textAlign: 'right' }}>Eski Borç</th>
+                    <th style={{ textAlign: 'right' }}>Doğalgaz Gecikme</th>
+                    <th style={{ textAlign: 'right' }}>Doğalgaz Diğer</th>
+                    <th style={{ textAlign: 'right', background: 'rgba(255,255,255,0.02)' }}>Toplam</th>
+                    <th style={{ textAlign: 'right', color: 'var(--success-color)' }}>Ödenen</th>
+                    <th style={{ textAlign: 'right', background: 'rgba(255,255,255,0.02)', fontWeight: 'bold' }}>Kalan</th>
+                    <th>Ödeme Kanalı</th>
+                    <th>Ödeme Tarihi</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const sorted = [...residents.filter(r => r.apartmentId === selectedAptId && (r.name.toLowerCase().includes(sheetSearch.toLowerCase()) || r.aptNo.includes(sheetSearch)))].sort((a,b) => {
+                      const aNum = parseInt(a.aptNo) || 0;
+                      const bNum = parseInt(b.aptNo) || 0;
+                      return aNum - bNum;
+                    });
+
+                    let totalDues = 0;
+                    let totalPrevDebt = 0;
+                    let totalGasDelay = 0;
+                    let totalGasOther = 0;
+                    let totalSum = 0;
+                    let totalPaid = 0;
+                    let totalRemaining = 0;
+
+                    const rows = sorted.map(r => {
+                      const dues = r.dues || 0;
+                      const prev = r.previousDebt || 0;
+                      const delay = r.gasDelay || 0;
+                      const other = r.gasOther || 0;
+                      const total = dues + prev + delay + other;
+                      const paid = r.paidAmount || 0;
+                      const remaining = total - paid;
+
+                      totalDues += dues;
+                      totalPrevDebt += prev;
+                      totalGasDelay += delay;
+                      totalGasOther += other;
+                      totalSum += total;
+                      totalPaid += paid;
+                      totalRemaining += remaining;
+
+                      return (
+                        <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => openSheetEditModal(r)}>
+                          <td style={{ fontWeight: 600 }}>Daire {r.aptNo}</td>
+                          <td style={{ fontWeight: 500 }}>{r.name}</td>
+                          <td>
+                            <span style={{ 
+                              fontSize: '11px', padding: '2px 6px', borderRadius: '4px',
+                              background: r.type === 'ev_sahibi' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                              color: r.type === 'ev_sahibi' ? 'var(--accent-color)' : 'var(--warning-color)'
+                            }}>
+                              {r.type === 'ev_sahibi' ? 'Ev Sahibi' : 'Kiracı'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>₺{dues.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right' }}>₺{prev.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right' }}>₺{delay.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right' }}>₺{other.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right', background: 'rgba(255,255,255,0.02)', fontWeight: 600 }}>
+                            ₺{total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                          </td>
+                          <td style={{ textAlign: 'right', color: 'var(--success-color)', fontWeight: 500 }}>
+                            ₺{paid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                          </td>
+                          <td style={{ 
+                            textAlign: 'right', 
+                            background: 'rgba(255,255,255,0.02)', 
+                            fontWeight: 'bold',
+                            color: remaining > 0 ? 'var(--danger-color)' : remaining < 0 ? 'var(--success-color)' : 'var(--text-primary)'
+                          }}>
+                            ₺{remaining.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                          </td>
+                          <td>{r.paymentChannel || '-'}</td>
+                          <td>{r.paymentDate || '-'}</td>
+                          <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={() => openSheetEditModal(r)}
+                              style={{ background: 'transparent', color: 'var(--accent-color)', padding: '4px' }}
+                              title="Defter Kaydını Düzenle"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+
+                    return (
+                      <>
+                        {rows}
+                        <tr style={{ background: 'rgba(255,255,255,0.03)', fontWeight: 'bold', borderTop: '2px solid var(--border-card)' }}>
+                          <td colSpan={3}>TOPLAM</td>
+                          <td style={{ textAlign: 'right' }}>₺{totalDues.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right' }}>₺{totalPrevDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right' }}>₺{totalGasDelay.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right' }}>₺{totalGasOther.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right', background: 'rgba(255,255,255,0.03)' }}>₺{totalSum.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--success-color)' }}>₺{totalPaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td style={{ textAlign: 'right', background: 'rgba(255,255,255,0.03)', color: totalRemaining > 0 ? 'var(--danger-color)' : 'var(--success-color)' }}>
+                            ₺{totalRemaining.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                          </td>
+                          <td colSpan={3}></td>
+                        </tr>
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -2688,6 +3302,115 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Muhasebe Defteri Hızlı Hücre Düzenleme Modalı */}
+      {isSheetEditModalOpen && (() => {
+        const resident = residents.find(r => r.id === sheetResId);
+        if (!resident) return null;
+        return (
+          <div className="modal-overlay">
+            <div className="glass-panel modal-content" style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h3 style={{ fontSize: '20px' }}>Daire {resident.aptNo} - Muhasebe Defteri Kaydı</h3>
+                <button className="close-btn" onClick={() => setIsSheetEditModalOpen(false)}><X size={24} /></button>
+              </div>
+              
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                <strong>{resident.name}</strong> isimli sakine ait tüm muhasebe değerlerini düzenleyin.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Aylık Sabit Aidat (₺)</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    placeholder="Aidat"
+                    value={sheetDues}
+                    onChange={(e) => setSheetDues(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Eski Borç Devri (₺)</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    placeholder="Eski Borç"
+                    value={sheetPrevDebt}
+                    onChange={(e) => setSheetPrevDebt(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Doğalgaz Gecikme Bedeli (₺)</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    placeholder="Gecikme Bedeli"
+                    value={sheetGasDelay}
+                    onChange={(e) => setSheetGasDelay(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Doğalgaz Isınma/Diğer (₺)</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    placeholder="Diğer Gider"
+                    value={sheetGasOther}
+                    onChange={(e) => setSheetGasOther(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-card)', margin: '16px 0', paddingTop: '16px' }}>
+                <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-primary)' }}>Ödeme & Tahsilat Bilgileri</h4>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Yapılan Ödeme / Ödenen (₺)</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      placeholder="Ödenen Miktar"
+                      value={sheetPaidAmount}
+                      onChange={(e) => setSheetPaidAmount(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Ödeme Tarihi</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Örn: 16.01.2026"
+                      value={sheetDate}
+                      onChange={(e) => setSheetDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>Ödeme Kanalı (Açıklama)</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="Örn: BANKA, GELİR FİŞİ 16"
+                    value={sheetChannel}
+                    onChange={(e) => setSheetChannel(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setIsSheetEditModalOpen(false)}>İptal</button>
+                <button className="btn-primary" style={{ flex: 1 }} onClick={handleSaveSheetResident}>Kayıt Değişikliklerini Uygula</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Staff Modal */}
       {isStaffModalOpen && (
