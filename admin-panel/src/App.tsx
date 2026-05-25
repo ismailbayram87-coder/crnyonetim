@@ -51,6 +51,16 @@ interface Staff {
   salary: number;
 }
 
+interface MonthlyRecord {
+  dues: number;
+  previousDebt: number;
+  gasDelay: number;
+  gasOther: number;
+  paidAmount: number;
+  paymentChannel: string;
+  paymentDate: string;
+}
+
 interface Resident {
   id: string;
   apartmentId: string;
@@ -66,6 +76,7 @@ interface Resident {
   paidAmount?: number;
   paymentChannel?: string;
   paymentDate?: string;
+  monthlyData?: Record<string, MonthlyRecord>;
 }
 
 interface StaffJob {
@@ -1231,6 +1242,28 @@ const INITIAL_STAFF_JOBS: StaffJob[] = [
   { id: 'sj2', staffId: 's1', buildingId: 'apt_1', jobType: 'Kat Temizliği', description: 'Güneş Apartmanı Koridor Temizliği', amount: 200, date: new Date('2026-05-19') },
 ];
 
+const getNextMonthKey = (monthKey: string): string => {
+  const [yearStr, monthStr] = monthKey.split('-');
+  let year = parseInt(yearStr);
+  let month = parseInt(monthStr);
+  month++;
+  if (month > 12) {
+    month = 1;
+    year++;
+  }
+  return `${year}-${month.toString().padStart(2, '0')}`;
+};
+
+const formatMonthKey = (key: string): string => {
+  const [year, month] = key.split('-');
+  const monthNames = [
+    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+  ];
+  const mIndex = parseInt(month) - 1;
+  return `${monthNames[mIndex] || month} ${year}`;
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [selectedAptId, setSelectedAptId] = useState<string | null>(null);
@@ -1371,6 +1404,39 @@ export default function App() {
   const [sheetChannel, setSheetChannel] = useState('');
   const [sheetDate, setSheetDate] = useState('');
 
+  // Selected period and available period tracking
+  const [selectedMonth, setSelectedMonth] = useState('2026-01');
+  const [availableMonths, setAvailableMonths] = useState<string[]>(() => {
+    const saved = localStorage.getItem('crm_available_months');
+    return saved ? JSON.parse(saved) : ['2026-01', '2026-02', '2026-03'];
+  });
+  useEffect(() => {
+    localStorage.setItem('crm_available_months', JSON.stringify(availableMonths));
+  }, [availableMonths]);
+
+  // Synchronize resident root properties to match the selected monthly period
+  useEffect(() => {
+    setResidents(prev => prev.map(r => {
+      const mData = r.monthlyData?.[selectedMonth];
+      if (mData) {
+        const total = (mData.dues || 0) + (mData.previousDebt || 0) + (mData.gasDelay || 0) + (mData.gasOther || 0);
+        const remaining = total - (mData.paidAmount || 0);
+        return {
+          ...r,
+          dues: mData.dues,
+          previousDebt: mData.previousDebt,
+          gasDelay: mData.gasDelay,
+          gasOther: mData.gasOther,
+          paidAmount: mData.paidAmount,
+          paymentChannel: mData.paymentChannel,
+          paymentDate: mData.paymentDate,
+          balance: -remaining
+        };
+      }
+      return r;
+    }));
+  }, [selectedMonth]);
+
   // Debt Form
   const [debtType, setDebtType] = useState<'aidat_kiraci' | 'demirbas_evsahibi'>('aidat_kiraci');
   const [debtAmount, setDebtAmount] = useState('');
@@ -1476,10 +1542,38 @@ export default function App() {
     if (!resident) return;
     const payVal = parseFloat(paymentAmount);
 
-    // Sakin bakiyesini güncelle
-    setResidents(residents.map(r => r.id === residentId ? {
-      ...r, balance: r.balance + payVal
-    } : r));
+    // Sakin bakiyesini ve aylık verisini güncelle
+    setResidents(residents.map(r => {
+      if (r.id === residentId) {
+        const currentMonthData = r.monthlyData?.[selectedMonth] || {
+          dues: r.dues || 0,
+          previousDebt: r.previousDebt || 0,
+          gasDelay: r.gasDelay || 0,
+          gasOther: r.gasOther || 0,
+          paidAmount: r.paidAmount || 0,
+          paymentChannel: r.paymentChannel || '',
+          paymentDate: r.paymentDate || ''
+        };
+        const updatedMonthRecord = {
+          ...currentMonthData,
+          paidAmount: (currentMonthData.paidAmount || 0) + payVal,
+          paymentChannel: currentMonthData.paymentChannel || 'KASA',
+          paymentDate: currentMonthData.paymentDate || format(new Date(), 'dd.MM.yyyy')
+        };
+        return {
+          ...r,
+          balance: r.balance + payVal,
+          paidAmount: updatedMonthRecord.paidAmount,
+          paymentChannel: updatedMonthRecord.paymentChannel,
+          paymentDate: updatedMonthRecord.paymentDate,
+          monthlyData: {
+            ...(r.monthlyData || {}),
+            [selectedMonth]: updatedMonthRecord
+          }
+        };
+      }
+      return r;
+    }));
 
     // Kasa kaydı oluştur (gelir olarak)
     const newTransaction: Transaction = {
@@ -1487,7 +1581,7 @@ export default function App() {
       apartmentId: resident.apartmentId,
       type: 'income',
       amount: payVal,
-      description: paymentDesc || `Daire ${resident.aptNo} (${resident.name}) Aidat Tahsilatı`,
+      description: paymentDesc || `${formatMonthKey(selectedMonth)} Aidat Tahsilatı (Daire ${resident.aptNo})`,
       date: new Date(),
       residentId: resident.id
     };
@@ -1504,10 +1598,34 @@ export default function App() {
     if (!resident) return;
     const debtVal = parseFloat(debitAmountSingle);
 
-    // Sakin bakiyesini düşür (borçlandır)
-    setResidents(residents.map(r => r.id === residentId ? {
-      ...r, balance: r.balance - debtVal
-    } : r));
+    // Sakin bakiyesini düşür ve aylık verisini güncelle
+    setResidents(residents.map(r => {
+      if (r.id === residentId) {
+        const currentMonthData = r.monthlyData?.[selectedMonth] || {
+          dues: r.dues || 0,
+          previousDebt: r.previousDebt || 0,
+          gasDelay: r.gasDelay || 0,
+          gasOther: r.gasOther || 0,
+          paidAmount: r.paidAmount || 0,
+          paymentChannel: r.paymentChannel || '',
+          paymentDate: r.paymentDate || ''
+        };
+        const updatedMonthRecord = {
+          ...currentMonthData,
+          gasOther: (currentMonthData.gasOther || 0) + debtVal
+        };
+        return {
+          ...r,
+          balance: r.balance - debtVal,
+          gasOther: updatedMonthRecord.gasOther,
+          monthlyData: {
+            ...(r.monthlyData || {}),
+            [selectedMonth]: updatedMonthRecord
+          }
+        };
+      }
+      return r;
+    }));
 
     setDebitAmountSingle(''); setDebitDescSingle('');
     alert('Borçlandırma işlemi başarıyla tamamlandı.');
@@ -1565,11 +1683,32 @@ export default function App() {
     if (fuelPreviewList.length === 0) return;
     const invoiceAmt = parseFloat(fuelTotalInvoice) || fuelPreviewList.reduce((acc, c) => acc + c.amount, 0);
 
-    // Sakinleri borçlandır
+    // Sakinleri borçlandır ve aylık verisini güncelle
     const updatedResidents = residents.map(r => {
       const match = fuelPreviewList.find(p => p.residentId === r.id);
       if (match) {
-        return { ...r, balance: r.balance - match.amount };
+        const currentMonthData = r.monthlyData?.[selectedMonth] || {
+          dues: r.dues || 0,
+          previousDebt: r.previousDebt || 0,
+          gasDelay: r.gasDelay || 0,
+          gasOther: r.gasOther || 0,
+          paidAmount: r.paidAmount || 0,
+          paymentChannel: r.paymentChannel || '',
+          paymentDate: r.paymentDate || ''
+        };
+        const updatedMonthRecord = {
+          ...currentMonthData,
+          gasOther: (currentMonthData.gasOther || 0) + match.amount
+        };
+        return {
+          ...r,
+          balance: r.balance - match.amount,
+          gasOther: updatedMonthRecord.gasOther,
+          monthlyData: {
+            ...(r.monthlyData || {}),
+            [selectedMonth]: updatedMonthRecord
+          }
+        };
       }
       return r;
     });
@@ -1581,7 +1720,7 @@ export default function App() {
       apartmentId: selectedAptId || undefined,
       type: 'expense',
       amount: invoiceAmt,
-      description: `Yakıt Gideri Paylaştırma Faturası`,
+      description: `${formatMonthKey(selectedMonth)} Yakıt Gideri Paylaştırma Faturası`,
       date: new Date()
     };
     setTransactions([newTransaction, ...transactions]);
@@ -1751,6 +1890,18 @@ export default function App() {
           }
         } else {
           // Yeni ekle
+          const mData: Record<string, MonthlyRecord> = {};
+          availableMonths.forEach(m => {
+            mData[m] = {
+              dues: 430,
+              previousDebt: m === selectedMonth ? -item.balance : 0,
+              gasDelay: 0,
+              gasOther: 0,
+              paidAmount: 0,
+              paymentChannel: '',
+              paymentDate: ''
+            };
+          });
           const newRes: Resident = {
             id: Math.random().toString(),
             apartmentId: importTargetBuildingId,
@@ -1758,7 +1909,15 @@ export default function App() {
             aptNo: item.aptNo.replace('Daire ', ''),
             phone: item.phone,
             balance: item.balance,
-            type: item.type
+            type: item.type,
+            dues: 430,
+            previousDebt: -item.balance,
+            gasDelay: 0,
+            gasOther: 0,
+            paidAmount: 0,
+            paymentChannel: '',
+            paymentDate: '',
+            monthlyData: mData
           };
           addedResidents.push(newRes);
         }
@@ -1872,6 +2031,18 @@ export default function App() {
         name: resName, aptNo: resAptNo, phone: resPhone, type: resType, apartmentId: resAptId
       } : r));
     } else {
+      const mData: Record<string, MonthlyRecord> = {};
+      availableMonths.forEach(m => {
+        mData[m] = {
+          dues: 430,
+          previousDebt: 0,
+          gasDelay: 0,
+          gasOther: 0,
+          paidAmount: 0,
+          paymentChannel: '',
+          paymentDate: ''
+        };
+      });
       const newResident: Resident = {
         id: Math.random().toString(),
         apartmentId: resAptId,
@@ -1879,7 +2050,15 @@ export default function App() {
         aptNo: resAptNo,
         phone: resPhone,
         balance: 0,
-        type: resType
+        type: resType,
+        dues: 430,
+        previousDebt: 0,
+        gasDelay: 0,
+        gasOther: 0,
+        paidAmount: 0,
+        paymentChannel: '',
+        paymentDate: '',
+        monthlyData: mData
       };
       setResidents([...residents, newResident]);
     }
@@ -1888,13 +2067,24 @@ export default function App() {
 
   const openSheetEditModal = (resident: Resident) => {
     setSheetResId(resident.id);
-    setSheetDues(resident.dues !== undefined ? resident.dues.toString() : '');
-    setSheetPrevDebt(resident.previousDebt !== undefined ? resident.previousDebt.toString() : '');
-    setSheetGasDelay(resident.gasDelay !== undefined ? resident.gasDelay.toString() : '');
-    setSheetGasOther(resident.gasOther !== undefined ? resident.gasOther.toString() : '');
-    setSheetPaidAmount(resident.paidAmount !== undefined ? resident.paidAmount.toString() : '');
-    setSheetChannel(resident.paymentChannel || '');
-    setSheetDate(resident.paymentDate || '');
+    const mData = resident.monthlyData?.[selectedMonth];
+    if (mData) {
+      setSheetDues(mData.dues !== undefined ? mData.dues.toString() : '');
+      setSheetPrevDebt(mData.previousDebt !== undefined ? mData.previousDebt.toString() : '');
+      setSheetGasDelay(mData.gasDelay !== undefined ? mData.gasDelay.toString() : '');
+      setSheetGasOther(mData.gasOther !== undefined ? mData.gasOther.toString() : '');
+      setSheetPaidAmount(mData.paidAmount !== undefined ? mData.paidAmount.toString() : '');
+      setSheetChannel(mData.paymentChannel || '');
+      setSheetDate(mData.paymentDate || '');
+    } else {
+      setSheetDues(resident.dues !== undefined ? resident.dues.toString() : '');
+      setSheetPrevDebt(resident.previousDebt !== undefined ? resident.previousDebt.toString() : '');
+      setSheetGasDelay(resident.gasDelay !== undefined ? resident.gasDelay.toString() : '');
+      setSheetGasOther(resident.gasOther !== undefined ? resident.gasOther.toString() : '');
+      setSheetPaidAmount(resident.paidAmount !== undefined ? resident.paidAmount.toString() : '');
+      setSheetChannel(resident.paymentChannel || '');
+      setSheetDate(resident.paymentDate || '');
+    }
     setIsSheetEditModalOpen(true);
   };
 
@@ -1919,12 +2109,25 @@ export default function App() {
       paidAmount: paidAmountVal,
       paymentChannel: sheetChannel,
       paymentDate: sheetDate,
-      balance: newBalance
+      balance: newBalance,
+      monthlyData: {
+        ...(r.monthlyData || {}),
+        [selectedMonth]: {
+          dues: duesVal,
+          previousDebt: prevDebtVal,
+          gasDelay: gasDelayVal,
+          gasOther: gasOtherVal,
+          paidAmount: paidAmountVal,
+          paymentChannel: sheetChannel,
+          paymentDate: sheetDate
+        }
+      }
     } : r));
 
     // Keep transactions synced
     if (paidAmountVal > 0) {
-      const existingTIndex = transactions.findIndex(t => t.residentId === sheetResId && t.apartmentId === selectedAptId);
+      const transactionDesc = `${formatMonthKey(selectedMonth)} Ödemesi (${sheetChannel || 'BANKA'})`;
+      const existingTIndex = transactions.findIndex(t => t.residentId === sheetResId && t.apartmentId === selectedAptId && t.description.includes(formatMonthKey(selectedMonth)));
       
       let parsedDate = new Date();
       if (sheetDate && sheetDate.includes('.')) {
@@ -1942,7 +2145,7 @@ export default function App() {
         updatedT[existingTIndex] = {
           ...updatedT[existingTIndex],
           amount: paidAmountVal,
-          description: `Ocak Ödemesi (${sheetChannel || 'BANKA'})`,
+          description: transactionDesc,
           date: parsedDate
         };
         setTransactions(updatedT);
@@ -1952,17 +2155,68 @@ export default function App() {
           apartmentId: selectedAptId || 'apt_elitkent_b',
           type: 'income' as const,
           amount: paidAmountVal,
-          description: `Ocak Ödemesi (${sheetChannel || 'BANKA'})`,
+          description: transactionDesc,
           date: parsedDate,
           residentId: sheetResId
         };
         setTransactions([...transactions, newT]);
       }
     } else {
-      setTransactions(transactions.filter(t => !(t.residentId === sheetResId && t.apartmentId === selectedAptId)));
+      setTransactions(transactions.filter(t => !(t.residentId === sheetResId && t.apartmentId === selectedAptId && t.description.includes(formatMonthKey(selectedMonth)))));
     }
 
     setIsSheetEditModalOpen(false);
+  };
+
+  const handleOpenNewPeriod = () => {
+    const latestMonth = availableMonths[availableMonths.length - 1];
+    const nextMonth = getNextMonthKey(latestMonth);
+    
+    if (availableMonths.includes(nextMonth)) {
+      alert(`${formatMonthKey(nextMonth)} dönemi zaten açık.`);
+      return;
+    }
+
+    if (!confirm(`${formatMonthKey(latestMonth)} dönemini kapatıp, kalan borç devirleriyle yeni ${formatMonthKey(nextMonth)} dönemini açmak istiyor musunuz?`)) {
+      return;
+    }
+
+    const updatedResidents = residents.map(r => {
+      let prevDebtForNextMonth = 0;
+      let defaultDues = 430;
+      
+      const mRec = r.monthlyData?.[latestMonth];
+      if (mRec) {
+        prevDebtForNextMonth = (mRec.dues || 0) + (mRec.previousDebt || 0) + (mRec.gasDelay || 0) + (mRec.gasOther || 0) - (mRec.paidAmount || 0);
+        defaultDues = mRec.dues || r.dues || 430;
+      } else {
+        prevDebtForNextMonth = r.previousDebt || (r.balance < 0 ? -r.balance : 0);
+        defaultDues = r.dues || 430;
+      }
+
+      const nextMonthRecord = {
+        dues: defaultDues,
+        previousDebt: prevDebtForNextMonth,
+        gasDelay: 0,
+        gasOther: 0,
+        paidAmount: 0,
+        paymentChannel: '',
+        paymentDate: ''
+      };
+
+      return {
+        ...r,
+        monthlyData: {
+          ...(r.monthlyData || {}),
+          [nextMonth]: nextMonthRecord
+        }
+      };
+    });
+
+    setResidents(updatedResidents);
+    setAvailableMonths([...availableMonths, nextMonth]);
+    setSelectedMonth(nextMonth);
+    alert(`Yeni dönem (${formatMonthKey(nextMonth)}) başarıyla açıldı ve devreden borçlar yansıtıldı!`);
   };
 
   const handleExportSheetExcel = () => {
@@ -1972,6 +2226,7 @@ export default function App() {
 
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // UTF-8 BOM
     csvContent += `Muhasebe Defteri: ${apt.name}\r\n`;
+    csvContent += `Dönem: ${formatMonthKey(selectedMonth)}\r\n`;
     csvContent += `Tarih: ${format(new Date(), 'dd.MM.yyyy')}\r\n\r\n`;
 
     csvContent += "DAIRE NO;ADI SOYADI;AIDAT;ESKI BORC;DOGALGAZ GECIKMESI;DOGALGAZ DIGER GIDER;TOPLAM;ODENEN;KALAN;ODEME KANALI;ODEME TARIHI\r\n";
@@ -1983,21 +2238,24 @@ export default function App() {
     });
 
     sorted.forEach(r => {
-      const dues = r.dues || 0;
-      const prev = r.previousDebt || 0;
-      const delay = r.gasDelay || 0;
-      const other = r.gasOther || 0;
+      const mRec = r.monthlyData?.[selectedMonth];
+      const dues = mRec ? (mRec.dues || 0) : (r.dues || 0);
+      const prev = mRec ? (mRec.previousDebt || 0) : (r.previousDebt || 0);
+      const delay = mRec ? (mRec.gasDelay || 0) : (r.gasDelay || 0);
+      const other = mRec ? (mRec.gasOther || 0) : (r.gasOther || 0);
       const total = dues + prev + delay + other;
-      const paid = r.paidAmount || 0;
+      const paid = mRec ? (mRec.paidAmount || 0) : (r.paidAmount || 0);
       const remaining = total - paid;
+      const channel = mRec ? (mRec.paymentChannel || '') : (r.paymentChannel || '');
+      const date = mRec ? (mRec.paymentDate || '') : (r.paymentDate || '');
       
-      csvContent += `${r.aptNo};${r.name};₺${dues};₺${prev};₺${delay};₺${other};₺${total};₺${paid};₺${remaining};${r.paymentChannel || ''};${r.paymentDate || ''}\r\n`;
+      csvContent += `${r.aptNo};${r.name};₺${dues};₺${prev};₺${delay};₺${other};₺${total};₺${paid};₺${remaining};${channel};${date}\r\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${apt.name.replace(/ /g, "_")}_muhasebe_defteri.csv`);
+    link.setAttribute("download", `${apt.name.replace(/ /g, "_")}_${selectedMonth}_muhasebe_defteri.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2041,7 +2299,39 @@ export default function App() {
           }
 
           if (shouldApplyDebt) {
-            return { ...r, balance: r.balance - finalAmount };
+            const currentMonthData = r.monthlyData?.[selectedMonth] || {
+              dues: r.dues || 0,
+              previousDebt: r.previousDebt || 0,
+              gasDelay: r.gasDelay || 0,
+              gasOther: r.gasOther || 0,
+              paidAmount: r.paidAmount || 0,
+              paymentChannel: r.paymentChannel || '',
+              paymentDate: r.paymentDate || ''
+            };
+            
+            let updatedMonthRecord;
+            if (debtType === 'aidat_kiraci') {
+              updatedMonthRecord = {
+                ...currentMonthData,
+                dues: (currentMonthData.dues || 0) + finalAmount
+              };
+            } else {
+              updatedMonthRecord = {
+                ...currentMonthData,
+                gasOther: (currentMonthData.gasOther || 0) + finalAmount
+              };
+            }
+
+            return {
+              ...r,
+              balance: r.balance - finalAmount,
+              dues: updatedMonthRecord.dues,
+              gasOther: updatedMonthRecord.gasOther,
+              monthlyData: {
+                ...(r.monthlyData || {}),
+                [selectedMonth]: updatedMonthRecord
+              }
+            };
           }
         }
       }
@@ -2385,14 +2675,30 @@ export default function App() {
         {/* MUHASEBE DEFTERI TAB */}
         {activeTab === 'sheet' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
               <div>
                 <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Muhasebe Defteri</h2>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
                   Bina sakinlerinin tüm aidat, doğalgaz ısınma borçlanmaları ve tahsilat dökümünü içeren detaylı cari takip çizelgesi.
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.05)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-card)' }}>
+                  <label htmlFor="periodSelect" style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: 0, whiteSpace: 'nowrap' }}>Aktif Dönem:</label>
+                  <select
+                    id="periodSelect"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    style={{ background: 'transparent', color: 'var(--text-primary)', border: 'none', fontSize: '14px', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+                  >
+                    {availableMonths.map(m => (
+                      <option key={m} value={m} style={{ background: '#1e1b4b', color: '#fff' }}>{formatMonthKey(m)}</option>
+                    ))}
+                  </select>
+                </div>
+                <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={handleOpenNewPeriod}>
+                  <Plus size={18} /> Yeni Dönem Aç
+                </button>
                 <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={handleExportSheetExcel}>
                   <Download size={18} /> Excel Olarak İndir
                 </button>
@@ -2446,13 +2752,16 @@ export default function App() {
                     let totalRemaining = 0;
 
                     const rows = sorted.map(r => {
-                      const dues = r.dues || 0;
-                      const prev = r.previousDebt || 0;
-                      const delay = r.gasDelay || 0;
-                      const other = r.gasOther || 0;
+                      const mRec = r.monthlyData?.[selectedMonth];
+                      const dues = mRec ? (mRec.dues || 0) : (r.dues || 0);
+                      const prev = mRec ? (mRec.previousDebt || 0) : (r.previousDebt || 0);
+                      const delay = mRec ? (mRec.gasDelay || 0) : (r.gasDelay || 0);
+                      const other = mRec ? (mRec.gasOther || 0) : (r.gasOther || 0);
                       const total = dues + prev + delay + other;
-                      const paid = r.paidAmount || 0;
+                      const paid = mRec ? (mRec.paidAmount || 0) : (r.paidAmount || 0);
                       const remaining = total - paid;
+                      const channel = mRec ? (mRec.paymentChannel || '') : (r.paymentChannel || '');
+                      const date = mRec ? (mRec.paymentDate || '') : (r.paymentDate || '');
 
                       totalDues += dues;
                       totalPrevDebt += prev;
@@ -2493,8 +2802,8 @@ export default function App() {
                           }}>
                             ₺{remaining.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                           </td>
-                          <td>{r.paymentChannel || '-'}</td>
-                          <td>{r.paymentDate || '-'}</td>
+                          <td>{channel || '-'}</td>
+                          <td>{date || '-'}</td>
                           <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => openSheetEditModal(r)}
