@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers';
+type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import';
 
 interface Apartment {
   id: string;
@@ -202,6 +202,16 @@ export default function App() {
     residentId?: string;
   }
   const [fuelPreviewList, setFuelPreviewList] = useState<FuelPreviewItem[]>([]);
+
+  // Import Wizard states
+  const [importStep, setImportStep] = useState<1 | 2 | 3>(1);
+  const [importType, setImportType] = useState<'residents' | 'debts' | 'payments'>('residents');
+  const [importRawText, setImportRawText] = useState('');
+  const [importHeaders, setImportHeaders] = useState<string[]>([]);
+  const [importRows, setImportRows] = useState<string[][]>([]);
+  const [importMapping, setImportMapping] = useState<Record<string, number>>({});
+  const [importTargetBuildingId, setImportTargetBuildingId] = useState(apartments[0]?.id || '');
+  const [importPreviewList, setImportPreviewList] = useState<any[]>([]);
 
   // Editing state
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
@@ -497,6 +507,149 @@ export default function App() {
     window.print();
   };
 
+  // 9. Excel/Sheets Çözümleme (Adım 1 -> Adım 2)
+  const handleProcessImportRawText = () => {
+    if (!importRawText.trim()) {
+      alert('Lütfen içe aktarılacak Excel tablosunu yapıştırın.');
+      return;
+    }
+
+    const lines = importRawText.trim().split('\n');
+    if (lines.length < 2) {
+      alert('Excel verisinde yeterli satır bulunamadı (En azından bir başlık satırı ve bir veri satırı olmalı).');
+      return;
+    }
+
+    // Excel tab ayracı (TSV), CSV virgül ya da noktalı virgül
+    let delimiter = '\t';
+    if (lines[0].split(';').length > lines[0].split('\t').length) delimiter = ';';
+    else if (lines[0].split(',').length > lines[0].split('\t').length) delimiter = ',';
+
+    const parsedHeaders = lines[0].split(delimiter).map(h => h.trim());
+    const parsedRows = lines.slice(1).map(line => line.split(delimiter).map(cell => cell.trim())).filter(row => row.some(cell => cell !== ''));
+
+    setImportHeaders(parsedHeaders);
+    setImportRows(parsedRows);
+
+    // Akıllı Otomatik Eşleştirme (Sözcük analizi)
+    const initialMapping: Record<string, number> = {};
+    parsedHeaders.forEach((header, idx) => {
+      const hLower = header.toLowerCase();
+      if (hLower.includes('daire') || hLower.includes('no') || hLower.includes('apt') || hLower.includes('kapı')) {
+        initialMapping['aptNo'] = idx;
+      } else if (hLower.includes('ad') || hLower.includes('soyad') || hLower.includes('isim') || hLower.includes('sakin') || hLower.includes('kisi')) {
+        initialMapping['name'] = idx;
+      } else if (hLower.includes('telefon') || hLower.includes('tel') || hLower.includes('gsm') || hLower.includes('phone') || hLower.includes('cep')) {
+        initialMapping['phone'] = idx;
+      } else if (hLower.includes('rol') || hLower.includes('durum') || hLower.includes('tip') || hLower.includes('kiraci') || hLower.includes('sahip')) {
+        initialMapping['type'] = idx;
+      } else if (hLower.includes('bakiye') || hLower.includes('borc') || hLower.includes('alacak') || hLower.includes('tutar') || hLower.includes('balance') || hLower.includes('tl') || hLower.includes('amount')) {
+        initialMapping['balance'] = idx;
+      }
+    });
+
+    setImportMapping(initialMapping);
+    setImportStep(2);
+  };
+
+  // 10. İthalat Önizleme Oluştur (Adım 2 -> Adım 3)
+  const handleGenerateImportPreview = () => {
+    if (importMapping['aptNo'] === undefined || importMapping['name'] === undefined) {
+      alert('Lütfen en azından "Daire No" ve "Sakin Adı" sütunlarını eşleştirin.');
+      return;
+    }
+
+    const previewItems = importRows.map((row, idx) => {
+      const aptNo = row[importMapping['aptNo']] || '';
+      const name = row[importMapping['name']] || '';
+      const phone = importMapping['phone'] !== undefined ? row[importMapping['phone']] || '' : '';
+      
+      let rawType = importMapping['type'] !== undefined ? row[importMapping['type']].toLowerCase() : '';
+      const type: 'kiraci' | 'ev_sahibi' = (rawType.includes('sahip') || rawType.includes('ev') || rawType.includes('owner')) ? 'ev_sahibi' : 'kiraci';
+
+      let balance = 0;
+      if (importMapping['balance'] !== undefined) {
+        const balStr = row[importMapping['balance']].replace('₺', '').replace(/\./g, '').replace(',', '.').trim();
+        balance = parseFloat(balStr) || 0;
+        // Eğer tabloda borç pozitif yazılmışsa, sisteme eksi bakiye yazmak için - ile çarparız
+        if (balance > 0) balance = -balance;
+      }
+
+      // Mevcut sakinler içinde çakışma var mı?
+      const exists = residents.find(r => 
+        r.apartmentId === importTargetBuildingId && 
+        (r.aptNo === aptNo || r.aptNo === `Daire ${aptNo}`)
+      );
+
+      return {
+        key: idx.toString(),
+        aptNo: aptNo.startsWith('Daire') ? aptNo : `Daire ${aptNo}`,
+        name,
+        phone: phone || 'Girilmedi',
+        type,
+        balance,
+        exists: !!exists,
+        residentId: exists ? exists.id : undefined
+      };
+    });
+
+    setImportPreviewList(previewItems);
+    setImportStep(3);
+  };
+
+  // 11. İthalatı Gerçekleştir ve Kaydet
+  const handleExecuteImport = () => {
+    if (importPreviewList.length === 0) return;
+
+    if (importType === 'residents') {
+      const addedResidents: Resident[] = [];
+      const updatedResidents = [...residents];
+
+      importPreviewList.forEach(item => {
+        if (item.exists && item.residentId) {
+          // Güncelle
+          const idx = updatedResidents.findIndex(r => r.id === item.residentId);
+          if (idx !== -1) {
+            updatedResidents[idx] = {
+              ...updatedResidents[idx],
+              name: item.name,
+              phone: item.phone,
+              type: item.type,
+              balance: item.balance // Başlangıç bakiyesini güncelle
+            };
+          }
+        } else {
+          // Yeni ekle
+          const newRes: Resident = {
+            id: Math.random().toString(),
+            apartmentId: importTargetBuildingId,
+            name: item.name,
+            aptNo: item.aptNo.replace('Daire ', ''),
+            phone: item.phone,
+            balance: item.balance,
+            type: item.type
+          };
+          addedResidents.push(newRes);
+        }
+      });
+
+      setResidents([...updatedResidents, ...addedResidents]);
+      alert(`${importPreviewList.length} adet sakin kaydı (Yeni: ${addedResidents.length}, Güncellenen: ${importPreviewList.length - addedResidents.length}) başarıyla binalara işlendi.`);
+    }
+
+    // Reset Import States
+    setImportStep(1);
+    setImportRawText('');
+    setImportHeaders([]);
+    setImportRows([]);
+    setImportMapping({});
+    setImportPreviewList([]);
+    
+    // Yönlendir
+    setSelectedAptId(importTargetBuildingId);
+    setActiveTab('residents');
+  };
+
   const handleDeleteTransaction = (id: string) => {
     if (window.confirm("Bu kaydı silmek istediğinize emin misiniz?")) {
       setTransactions(transactions.filter(t => t.id !== id));
@@ -775,7 +928,7 @@ export default function App() {
         ) : (
           <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', textAlign: 'center' }}>
             <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>İşlem yapmak için<br/>bina seçiniz</div>
-            {(activeTab === 'personnel' || activeTab === 'other_expenses' || activeTab === 'ledgers') && (
+            {(activeTab === 'personnel' || activeTab === 'other_expenses' || activeTab === 'ledgers' || activeTab === 'import') && (
                <button className="btn-secondary" style={{ width: '100%', fontSize: '12px', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { setSelectedAptId(null); setActiveTab('dashboard'); }}>
                  <Building size={14} /> Bina Seçimine Dön
                </button>
@@ -822,11 +975,15 @@ export default function App() {
           <Activity size={20} />
           <span>Cari Kasa</span>
         </button>
+        <button className={`nav-item ${activeTab === 'import' ? 'active' : ''}`} onClick={() => { setImportStep(1); setImportRawText(''); setActiveTab('import'); }}>
+          <Upload size={20} />
+          <span>Excel Veri Aktarımı</span>
+        </button>
       </div>
  
       {/* Main Content */}
       <div className="main-content">
-        {!selectedAptId && activeTab !== 'personnel' && activeTab !== 'other_expenses' && activeTab !== 'ledgers' && renderBuildingSelection()}
+        {!selectedAptId && activeTab !== 'personnel' && activeTab !== 'other_expenses' && activeTab !== 'ledgers' && activeTab !== 'import' && renderBuildingSelection()}
         
         {selectedAptId && activeTab === 'dashboard' && renderDashboard()}
 
@@ -1265,6 +1422,235 @@ export default function App() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* AKILLI EXCEL ITHALAT SIHIRBAZI (IMPORT WIZARD) TAB */}
+        {activeTab === 'import' && (
+          <div>
+            <h2 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Akıllı Excel / Sheets İçe Aktarma Sihirbazı</h2>
+            
+            {/* Step Wizard Header */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '12px', justifyContent: 'space-between', border: '1px solid var(--border-card)' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '8px', background: importStep === 1 ? 'rgba(59,130,246,0.15)' : 'transparent', borderLeft: importStep === 1 ? '3px solid var(--accent-color)' : 'none' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: importStep >= 1 ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>1</div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '13px' }}>Veri Kopyalama</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Excel/CSV verisini yapıştırın</div>
+                </div>
+              </div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '8px', background: importStep === 2 ? 'rgba(59,130,246,0.15)' : 'transparent', borderLeft: importStep === 2 ? '3px solid var(--accent-color)' : 'none' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: importStep >= 2 ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>2</div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '13px' }}>Sütun Eşleştirme</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Alanları kolonlarla eşleyin</div>
+                </div>
+              </div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '8px', background: importStep === 3 ? 'rgba(59,130,246,0.15)' : 'transparent', borderLeft: importStep === 3 ? '3px solid var(--accent-color)' : 'none' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: importStep >= 3 ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>3</div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '13px' }}>Önizleme & Onay</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Simülasyonu kontrol edip aktarın</div>
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 1: VERI GIRISI */}
+            {importStep === 1 && (
+              <div className="glass-panel" style={{ padding: '32px' }}>
+                <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px' }}>Adım 1: Excel veya Google Sheets Verilerinizi Kopyalayın</h3>
+                
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>İÇE AKTARMA TÜRÜ</label>
+                  <select 
+                    className="input-field" 
+                    value={importType} 
+                    onChange={(e) => setImportType(e.target.value as any)}
+                    style={{ padding: '12px' }}
+                  >
+                    <option value="residents">Yeni Bina / Daire Sakin Listesi ve Bakiyeler</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Tablonuzdaki tüm verileri (Başlık satırı dahil) kopyalayıp (Ctrl+C) aşağıdaki alana yapıştırın (Ctrl+V):
+                  </label>
+                  <textarea 
+                    className="input-field" 
+                    rows={10} 
+                    placeholder="Daire No&#9;Sakin Adi&#9;Telefon&#9;Tip&#9;Bakiye&#10;1&#9;Ahmet Yılmaz&#9;05551234567&#9;Kiracı&#9;500&#10;2&#9;Ayşe Kaya&#9;05321234567&#9;Ev Sahibi&#9;-300"
+                    value={importRawText}
+                    onChange={(e) => setImportRawText(e.target.value)}
+                    style={{ fontFamily: 'monospace', fontSize: '13px', background: 'rgba(15, 23, 42, 0.7)' }}
+                  />
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    💡 Excel kopyalaması otomatik olarak tab-ayrımlı (TSV) metin oluşturur. Çözümleyicimiz tüm yapıları akıllıca okur.
+                  </div>
+                </div>
+
+                <button className="btn-primary" style={{ width: '100%' }} onClick={handleProcessImportRawText}>
+                  Verileri Oku ve Eşleştirmeye Geç
+                </button>
+              </div>
+            )}
+
+            {/* STEP 2: SUTUN ESLERSTIRME */}
+            {importStep === 2 && (
+              <div className="glass-panel" style={{ padding: '32px' }}>
+                <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '20px' }}>Adım 2: Tablo Sütunlarını Sistem Alanları ile Eşleştirin</h3>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>
+                  Yazılım, tablonuzun sütun başlıklarını okudu ve akıllı algoritmalarıyla olası eşleşmeleri otomatik seçti. Lütfen doğruluğundan emin olun:
+                </p>
+
+                {/* Bina Seçimi */}
+                <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-card)' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '8px' }}>HEDEF BİNA / APARTMAN</label>
+                  <select 
+                    className="input-field" 
+                    value={importTargetBuildingId} 
+                    onChange={(e) => setImportTargetBuildingId(e.target.value)}
+                    style={{ padding: '12px' }}
+                  >
+                    {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Seçilen Excel verileri bu binaya aktarılacaktır.</div>
+                </div>
+
+                {/* Sütun Listesi Eşleştirmeleri */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>DAİRE NUMARASI *</label>
+                    <select 
+                      className="input-field"
+                      value={importMapping['aptNo'] !== undefined ? importMapping['aptNo'] : ''}
+                      onChange={(e) => setImportMapping({ ...importMapping, aptNo: parseInt(e.target.value) })}
+                      style={{ padding: '10px' }}
+                    >
+                      <option value="">-- Seçiniz --</option>
+                      {importHeaders.map((h, idx) => <option key={idx} value={idx}>Sütun {idx + 1}: {h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>SAKİN ADI & SOYADI *</label>
+                    <select 
+                      className="input-field"
+                      value={importMapping['name'] !== undefined ? importMapping['name'] : ''}
+                      onChange={(e) => setImportMapping({ ...importMapping, name: parseInt(e.target.value) })}
+                      style={{ padding: '10px' }}
+                    >
+                      <option value="">-- Seçiniz --</option>
+                      {importHeaders.map((h, idx) => <option key={idx} value={idx}>Sütun {idx + 1}: {h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>TELEFON NUMARASI (İsteğe Bağlı)</label>
+                    <select 
+                      className="input-field"
+                      value={importMapping['phone'] !== undefined ? importMapping['phone'] : ''}
+                      onChange={(e) => setImportMapping({ ...importMapping, phone: parseInt(e.target.value) })}
+                      style={{ padding: '10px' }}
+                    >
+                      <option value="">-- Atla / Yok --</option>
+                      {importHeaders.map((h, idx) => <option key={idx} value={idx}>Sütun {idx + 1}: {h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>ROLÜ / SAKİN TİPİ (Ev Sahibi / Kiracı - İsteğe Bağlı)</label>
+                    <select 
+                      className="input-field"
+                      value={importMapping['type'] !== undefined ? importMapping['type'] : ''}
+                      onChange={(e) => setImportMapping({ ...importMapping, type: parseInt(e.target.value) })}
+                      style={{ padding: '10px' }}
+                    >
+                      <option value="">-- Atla (Varsayılan Kiracı) --</option>
+                      {importHeaders.map((h, idx) => <option key={idx} value={idx}>Sütun {idx + 1}: {h}</option>)}
+                    </select>
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--warning-color)', marginBottom: '6px' }}>GÜNCEL HESAP BAKİYESİ / BORÇ (İsteğe Bağlı)</label>
+                    <select 
+                      className="input-field"
+                      value={importMapping['balance'] !== undefined ? importMapping['balance'] : ''}
+                      onChange={(e) => setImportMapping({ ...importMapping, balance: parseInt(e.target.value) })}
+                      style={{ padding: '10px' }}
+                    >
+                      <option value="">-- Atla (Varsayılan 0 ₺) --</option>
+                      {importHeaders.map((h, idx) => <option key={idx} value={idx}>Sütun {idx + 1}: {h}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <button className="btn-primary" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }} onClick={() => setImportStep(1)}>
+                    Geri Dön
+                  </button>
+                  <button className="btn-primary" style={{ flex: 2 }} onClick={handleGenerateImportPreview}>
+                    Önizlemeyi İncele ve Doğrula
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: PREVIEW & FINISH */}
+            {importStep === 3 && (
+              <div className="glass-panel" style={{ padding: '32px' }}>
+                <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px' }}>Adım 3: Aktarılacak Veri Önizlemesi ve Simülasyonu</h3>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>
+                  Verileriniz sistemle eşleştirildi. Yeni sakinler sisteme eklenecek, daire numarası aynı olan mevcut sakinlerin ise kartları güncellenecektir:
+                </p>
+
+                <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border-card)', borderRadius: '12px', marginBottom: '32px' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Daire No</th>
+                        <th>Sakin Adı</th>
+                        <th>Telefon</th>
+                        <th>Rol</th>
+                        <th>Eklenecek Başlangıç Borcu</th>
+                        <th>Durum</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreviewList.map(item => (
+                        <tr key={item.key} style={{ background: item.exists ? 'rgba(59, 130, 246, 0.05)' : 'transparent' }}>
+                          <td style={{ fontWeight: 600 }}>{item.aptNo}</td>
+                          <td style={{ fontWeight: 500 }}>{item.name}</td>
+                          <td>{item.phone}</td>
+                          <td>
+                            <span className={`badge ${item.type === 'ev_sahibi' ? 'badge-info' : 'badge-warning'}`}>
+                              {item.type === 'ev_sahibi' ? 'Ev Sahibi' : 'Kiracı'}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 600, color: item.balance < 0 ? 'var(--danger-color)' : 'var(--text-primary)' }}>
+                            ₺{Math.abs(item.balance).toLocaleString()}
+                          </td>
+                          <td>
+                            <span className={`badge ${item.exists ? 'badge-warning' : 'badge-success'}`}>
+                              {item.exists ? 'Mevcut (Güncellenecek)' : 'Yeni Daire (Sisteme Eklenecek)'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <button className="btn-primary" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }} onClick={() => setImportStep(2)}>
+                    Geri Dön
+                  </button>
+                  <button className="btn-success" style={{ flex: 2 }} onClick={handleExecuteImport}>
+                    Sisteme Kaydet ve İçe Aktarmayı Tamamla
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
