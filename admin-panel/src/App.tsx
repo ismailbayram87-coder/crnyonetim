@@ -23,13 +23,36 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import' | 'sheet';
+type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import' | 'sheet' | 'tickets';
 
 interface Apartment {
   id: string;
   name: string;
   duesDay: number;
   duesAmount: number;
+}
+
+interface Poll {
+  id: string;
+  question: string;
+  options: string[];
+  targetBuildingId: string;
+  votes: Record<string, string>; // residentId -> option
+  active: boolean;
+  date: string;
+}
+
+interface Ticket {
+  id: string;
+  title: string;
+  description: string;
+  residentId: string;
+  apartmentId: string;
+  status: 'Açık' | 'İşlemde' | 'Çözüldü';
+  priority: 'Düşük' | 'Orta' | 'Yüksek';
+  createdAt: string;
+  assignedStaffId: string | null;
+  resolutionNotes: string;
 }
 
 interface Transaction {
@@ -97,9 +120,7 @@ interface PredefinedJob {
 }
 
 const INITIAL_APARTMENTS: Apartment[] = [
-  { id: 'apt_elitkent_b', name: 'Elitkent Sitesi B Blok', duesDay: 15, duesAmount: 1000 },
-  { id: 'apt_1', name: 'Güneş Apartmanı', duesDay: 15, duesAmount: 500 },
-  { id: 'apt_2', name: 'Yıldız Sitesi A Blok', duesDay: 5, duesAmount: 750 },
+  { id: 'apt_elitkent_b', name: 'Elitkent Sitesi B Blok', duesDay: 15, duesAmount: 1000 }
 ];
 
 const INITIAL_RESIDENTS: Resident[] = [
@@ -1265,54 +1286,126 @@ const formatMonthKey = (key: string): string => {
   return `${monthNames[mIndex] || month} ${year}`;
 };
 
+const parseTurkishOrEnglishFloat = (str: string): number => {
+  let cleanStr = str.replace(/[^\d.,-]/g, '').trim(); // Keep only digits, dots, commas, minus
+  if (!cleanStr) return NaN;
+  
+  if (cleanStr.includes('.') && cleanStr.includes(',')) {
+    const lastDot = cleanStr.lastIndexOf('.');
+    const lastComma = cleanStr.lastIndexOf(',');
+    if (lastDot > lastComma) {
+      cleanStr = cleanStr.replace(/,/g, '');
+    } else {
+      cleanStr = cleanStr.replace(/\./g, '').replace(',', '.');
+    }
+  } else if (cleanStr.includes(',')) {
+    cleanStr = cleanStr.replace(',', '.');
+  }
+  return parseFloat(cleanStr);
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [selectedAptId, setSelectedAptId] = useState<string | null>(null);
   
-  const [apartments, setApartments] = useState<Apartment[]>(() => {
-    const saved = localStorage.getItem('crm_apartments');
-    return saved ? JSON.parse(saved) : INITIAL_APARTMENTS;
-  });
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('crm_transactions');
-    return saved ? JSON.parse(saved).map((t: any) => ({ ...t, date: new Date(t.date) })) : INITIAL_TRANSACTIONS;
-  });
-  const [residents, setResidents] = useState<Resident[]>(() => {
-    const saved = localStorage.getItem('crm_residents');
-    return saved ? JSON.parse(saved) : INITIAL_RESIDENTS;
-  });
-  const [staffs, setStaffs] = useState<Staff[]>(() => {
-    const saved = localStorage.getItem('crm_staffs');
-    return saved ? JSON.parse(saved) : INITIAL_STAFFS;
-  });
-  const [staffJobs, setStaffJobs] = useState<StaffJob[]>(() => {
-    const saved = localStorage.getItem('crm_staff_jobs');
-    return saved ? JSON.parse(saved).map((j: any) => ({ ...j, date: new Date(j.date) })) : INITIAL_STAFF_JOBS;
-  });
-  const [predefinedJobs] = useState<PredefinedJob[]>(() => {
-    const saved = localStorage.getItem('crm_predefined_jobs');
-    return saved ? JSON.parse(saved) : INITIAL_PREDEFINED_JOBS;
-  });
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [staffs, setStaffs] = useState<Staff[]>([]);
+  const [staffJobs, setStaffJobs] = useState<StaffJob[]>([]);
+  const [predefinedJobs, setPredefinedJobs] = useState<PredefinedJob[]>([]);
+  const [availableMonths, setAvailableMonths] = useState<string[]>(['2026-01']);
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // LocalStorage Effects
+  // API Load Effect
   useEffect(() => {
+    fetch('http://localhost:5000/api/db')
+      .then(res => res.json())
+      .then(data => {
+        setApartments(data.apartments || []);
+        setResidents(data.residents || []);
+        setTransactions((data.transactions || []).map((t: any) => ({ ...t, date: new Date(t.date) })));
+        setStaffs(data.staffs || []);
+        setStaffJobs((data.staffJobs || []).map((j: any) => ({ ...j, date: new Date(j.date) })));
+        setPredefinedJobs(data.predefinedJobs || []);
+        setAvailableMonths(data.availableMonths || ['2026-01']);
+        setPolls(data.polls || []);
+        setTickets(data.tickets || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.warn("Backend API not running, falling back to localStorage/mock defaults:", err);
+        const savedApts = localStorage.getItem('crm_apartments');
+        setApartments(savedApts ? JSON.parse(savedApts) : INITIAL_APARTMENTS);
+        const savedTrans = localStorage.getItem('crm_transactions');
+        setTransactions(savedTrans ? JSON.parse(savedTrans).map((t: any) => ({ ...t, date: new Date(t.date) })) : INITIAL_TRANSACTIONS);
+        const savedRes = localStorage.getItem('crm_residents');
+        setResidents(savedRes ? JSON.parse(savedRes) : INITIAL_RESIDENTS);
+        const savedStaffs = localStorage.getItem('crm_staffs');
+        setStaffs(savedStaffs ? JSON.parse(savedStaffs) : INITIAL_STAFFS);
+        const savedJobs = localStorage.getItem('crm_staff_jobs');
+        setStaffJobs(savedJobs ? JSON.parse(savedJobs).map((j: any) => ({ ...j, date: new Date(j.date) })) : INITIAL_STAFF_JOBS);
+        const savedMonths = localStorage.getItem('crm_available_months');
+        setAvailableMonths(savedMonths ? JSON.parse(savedMonths) : ['2026-01', '2026-02', '2026-03']);
+        setPredefinedJobs(INITIAL_PREDEFINED_JOBS);
+        setPolls([
+          {
+            id: "p1",
+            question: "Dış cephe boyama rengi ne olmalıdır?",
+            options: ["Bej", "Gri", "Yeşil"],
+            targetBuildingId: "apt_elitkent_b",
+            votes: {},
+            active: true,
+            date: "2026-06-06T11:00:00.000Z"
+          }
+        ]);
+        setTickets([
+          {
+            id: "t_t1",
+            title: "B Blok Asansör Arızası",
+            description: "2. asansör yukarı çıkarken sarsıntı yapıyor ve ses çıkarıyor.",
+            residentId: "elitkent_2",
+            apartmentId: "apt_elitkent_b",
+            status: "Açık",
+            priority: "Yüksek",
+            createdAt: "2026-06-06T10:00:00.000Z",
+            assignedStaffId: null,
+            resolutionNotes: ""
+          }
+        ]);
+        setLoading(false);
+      });
+  }, []);
+
+  // API Sync Effect
+  useEffect(() => {
+    if (loading) return;
+    const dbState = {
+      apartments,
+      residents,
+      transactions,
+      staffs,
+      staffJobs,
+      predefinedJobs,
+      availableMonths,
+      polls,
+      tickets
+    };
+    fetch('http://localhost:5000/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dbState)
+    }).catch(err => console.warn("Failed to sync with API backend, saving to localStorage:", err));
+
     localStorage.setItem('crm_apartments', JSON.stringify(apartments));
-  }, [apartments]);
-  useEffect(() => {
     localStorage.setItem('crm_transactions', JSON.stringify(transactions));
-  }, [transactions]);
-  useEffect(() => {
     localStorage.setItem('crm_residents', JSON.stringify(residents));
-  }, [residents]);
-  useEffect(() => {
     localStorage.setItem('crm_staffs', JSON.stringify(staffs));
-  }, [staffs]);
-  useEffect(() => {
     localStorage.setItem('crm_staff_jobs', JSON.stringify(staffJobs));
-  }, [staffJobs]);
-  useEffect(() => {
-    localStorage.setItem('crm_predefined_jobs', JSON.stringify(predefinedJobs));
-  }, [predefinedJobs]);
+    localStorage.setItem('crm_available_months', JSON.stringify(availableMonths));
+  }, [apartments, residents, transactions, staffs, staffJobs, predefinedJobs, availableMonths, polls, tickets, loading]);
 
   const handleResetToDefaults = () => {
     if (window.confirm("Tüm yerel verileri sıfırlayıp Elitkent B Blok gerçek verilerini ve varsayılan ayarları yeniden yüklemek istediğinize emin misiniz? Bu işlem yaptığınız tüm değişiklikleri geri alacaktır.")) {
@@ -1358,6 +1451,7 @@ export default function App() {
   const [paymentToStaffDesc, setPaymentToStaffDesc] = useState('');
 
   const [isFuelExpenseModalOpen, setIsFuelExpenseModalOpen] = useState(false);
+  const [selectedAptIdForFuel, setSelectedAptIdForFuel] = useState<string>('');
   const [fuelTotalInvoice, setFuelTotalInvoice] = useState('');
   const [fuelExcelText, setFuelExcelText] = useState('');
   interface FuelPreviewItem {
@@ -1383,6 +1477,18 @@ export default function App() {
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+
+  // Poll (Anket) management states
+  const [newPollQuestion, setNewPollQuestion] = useState('');
+  const [newPollOptions, setNewPollOptions] = useState(['', '']);
+  const [newPollTargetId, setNewPollTargetId] = useState('all');
+
+  // Ticket (Arıza) management states
+  const [filterBuildingId, setFilterBuildingId] = useState('all');
+  const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
+  const [editStatus, setEditStatus] = useState<'Açık' | 'İşlemde' | 'Çözüldü'>('Açık');
+  const [editStaffId, setEditStaffId] = useState<string | null>(null);
+  const [editNotes, setEditNotes] = useState('');
 
   // Staff Form
   const [staffName, setStaffName] = useState('');
@@ -1418,15 +1524,8 @@ export default function App() {
   const [sheetChannel, setSheetChannel] = useState('');
   const [sheetDate, setSheetDate] = useState('');
 
-  // Selected period and available period tracking
+  // Selected period tracking
   const [selectedMonth, setSelectedMonth] = useState('2026-01');
-  const [availableMonths, setAvailableMonths] = useState<string[]>(() => {
-    const saved = localStorage.getItem('crm_available_months');
-    return saved ? JSON.parse(saved) : ['2026-01', '2026-02', '2026-03'];
-  });
-  useEffect(() => {
-    localStorage.setItem('crm_available_months', JSON.stringify(availableMonths));
-  }, [availableMonths]);
 
   // Synchronize resident root properties to match the selected monthly period
   useEffect(() => {
@@ -1490,6 +1589,10 @@ export default function App() {
     if (!amount || !description) return;
     
     if (editingTransactionId) {
+      const oldT = transactions.find(t => t.id === editingTransactionId);
+      if (oldT) {
+        adjustResidentBalanceOnTransactionEdit(oldT, parseFloat(amount));
+      }
       setTransactions(transactions.map(t => t.id === editingTransactionId ? {
         ...t, description, amount: parseFloat(amount)
       } : t));
@@ -1651,9 +1754,12 @@ export default function App() {
       alert('Lütfen Excel/CSV verilerini yapıştırın.');
       return;
     }
-    if (!selectedAptId) return;
+    const targetAptId = selectedAptIdForFuel || selectedAptId;
+    if (!targetAptId) {
+      alert('Lütfen işlem yapacağınız binayı seçin.');
+      return;
+    }
 
-    // Excel kopyala yapıştır tab tab, CSV ise virgül/noktalı virgül ile ayrılır
     const lines = fuelExcelText.trim().split('\n');
     const previews: FuelPreviewItem[] = [];
 
@@ -1666,16 +1772,22 @@ export default function App() {
         parts = line.split(','); // CSV virgül
       }
 
-      if (parts.length >= 2) {
-        const key = parts[0].trim(); // Daire no veya İsim
-        const amtStr = parts[parts.length - 1].trim().replace('₺', '').replace(',', '.');
-        const amt = parseFloat(amtStr);
+      const filteredParts = parts.map(p => p.trim()).filter(p => p !== '');
+
+      if (filteredParts.length >= 2) {
+        const key = filteredParts[0]; // Daire no veya İsim
+        const amtStr = filteredParts[filteredParts.length - 1];
+        const amt = parseTurkishOrEnglishFloat(amtStr);
 
         if (!isNaN(amt)) {
           // Binadaki sakinle eşleştirme (daire numarasına veya isme göre)
           const matched = residents.find(r => 
-            r.apartmentId === selectedAptId && 
-            (r.aptNo === key || r.aptNo === `Daire ${key}` || r.name.toLowerCase().includes(key.toLowerCase()) || r.aptNo === `Daire ${key.replace(/\D/g,'')}`)
+            r.apartmentId === targetAptId && 
+            (r.aptNo === key || 
+             r.aptNo === `Daire ${key}` || 
+             r.name.toLowerCase().includes(key.toLowerCase()) || 
+             r.aptNo === key.replace(/\D/g,'') || 
+             `Daire ${r.aptNo}` === key)
           );
 
           previews.push({
@@ -1695,6 +1807,9 @@ export default function App() {
   // 6. Yakıt Gideri Borçlandırmasını Uygula
   const handleApplyFuelExpense = () => {
     if (fuelPreviewList.length === 0) return;
+    const targetAptId = selectedAptIdForFuel || selectedAptId;
+    if (!targetAptId) return;
+
     const invoiceAmt = parseFloat(fuelTotalInvoice) || fuelPreviewList.reduce((acc, c) => acc + c.amount, 0);
 
     // Sakinleri borçlandır ve aylık verisini güncelle
@@ -1731,7 +1846,7 @@ export default function App() {
     // Binaya yakıt faturası gideri yaz
     const newTransaction: Transaction = {
       id: Math.random().toString(),
-      apartmentId: selectedAptId || undefined,
+      apartmentId: targetAptId || undefined,
       type: 'expense',
       amount: invoiceAmt,
       description: `${formatMonthKey(selectedMonth)} Yakıt Gideri Paylaştırma Faturası`,
@@ -1954,8 +2069,276 @@ export default function App() {
     setActiveTab('residents');
   };
 
+  const openIncomeModal = (transaction?: Transaction) => {
+    if (transaction) {
+      setEditingTransactionId(transaction.id);
+      setDescription(transaction.description);
+      setAmount(transaction.amount.toString());
+    } else {
+      setEditingTransactionId(null);
+      setDescription('');
+      setAmount('');
+    }
+    setIsIncomeModalOpen(true);
+  };
+
+  const openExpenseModal = (transaction?: Transaction) => {
+    if (transaction) {
+      setEditingTransactionId(transaction.id);
+      setDescription(transaction.description);
+      setAmount(transaction.amount.toString());
+    } else {
+      setEditingTransactionId(null);
+      setDescription('');
+      setAmount('');
+    }
+    setIsExpenseModalOpen(true);
+  };
+
+  const handleAddPollOption = () => {
+    if (newPollOptions.length < 5) {
+      setNewPollOptions([...newPollOptions, '']);
+    }
+  };
+
+  const handleSavePoll = () => {
+    if (!newPollQuestion || newPollOptions.some(o => !o.trim())) {
+      alert('Lütfen anket sorusunu ve en az iki seçeneği doldurun.');
+      return;
+    }
+    const newPoll: Poll = {
+      id: 'poll_' + Math.random().toString(),
+      question: newPollQuestion,
+      options: newPollOptions.filter(o => o.trim() !== ''),
+      targetBuildingId: newPollTargetId,
+      votes: {},
+      active: true,
+      date: new Date().toISOString()
+    };
+    setPolls([newPoll, ...polls]);
+    setNewPollQuestion('');
+    setNewPollOptions(['', '']);
+    setNewPollTargetId('all');
+    alert('Anket başarıyla oluşturuldu ve yayınlandı!');
+  };
+
+  const handleTogglePoll = (id: string) => {
+    setPolls(polls.map(p => p.id === id ? { ...p, active: !p.active } : p));
+  };
+
+  const handleDeletePoll = (id: string) => {
+    if (window.confirm("Bu anketi silmek istediğinize emin misiniz?")) {
+      setPolls(polls.filter(p => p.id !== id));
+    }
+  };
+
+  const handleStartEdit = (ticket: Ticket) => {
+    setEditingTicketId(ticket.id);
+    setEditStatus(ticket.status);
+    setEditStaffId(ticket.assignedStaffId);
+    setEditNotes(ticket.resolutionNotes || '');
+  };
+
+  const handleSaveTicket = (id: string) => {
+    setTickets(tickets.map(t => t.id === id ? {
+      ...t,
+      status: editStatus,
+      assignedStaffId: editStaffId,
+      resolutionNotes: editNotes
+    } : t));
+    setEditingTicketId(null);
+    alert('Arıza kaydı başarıyla güncellendi.');
+  };
+
+  const getResidentName = (id: string) => residents.find(r => r.id === id)?.name || 'Bilinmeyen Sakin';
+  const getResidentAptNo = (id: string) => residents.find(r => r.id === id)?.aptNo || '-';
+
+  const adjustResidentBalanceOnTransactionDelete = (t: Transaction) => {
+    if (!t.residentId) return;
+    
+    setResidents(prevResidents => prevResidents.map(r => {
+      if (r.id === t.residentId) {
+        const year = t.date.getFullYear();
+        const month = (t.date.getMonth() + 1).toString().padStart(2, '0');
+        const monthKey = `${year}-${month}`;
+
+        const currentMonthData = r.monthlyData?.[monthKey] || r.monthlyData?.[selectedMonth] || {
+          dues: r.dues || 0,
+          previousDebt: r.previousDebt || 0,
+          gasDelay: r.gasDelay || 0,
+          gasOther: r.gasOther || 0,
+          paidAmount: r.paidAmount || 0,
+          paymentChannel: r.paymentChannel || '',
+          paymentDate: r.paymentDate || ''
+        };
+
+        const updatedMonthRecord = {
+          ...currentMonthData,
+          paidAmount: Math.max(0, (currentMonthData.paidAmount || 0) - t.amount)
+        };
+
+        const balanceDiff = t.type === 'income' ? -t.amount : t.amount;
+
+        return {
+          ...r,
+          balance: r.balance + balanceDiff,
+          paidAmount: monthKey === selectedMonth ? updatedMonthRecord.paidAmount : r.paidAmount,
+          monthlyData: {
+            ...(r.monthlyData || {}),
+            [monthKey]: updatedMonthRecord
+          }
+        };
+      }
+      return r;
+    }));
+  };
+
+  const adjustResidentBalanceOnTransactionEdit = (oldT: Transaction, newAmount: number) => {
+    if (!oldT.residentId) return;
+
+    const diff = newAmount - oldT.amount;
+    if (diff === 0) return;
+
+    setResidents(prevResidents => prevResidents.map(r => {
+      if (r.id === oldT.residentId) {
+        const year = oldT.date.getFullYear();
+        const month = (oldT.date.getMonth() + 1).toString().padStart(2, '0');
+        const monthKey = `${year}-${month}`;
+
+        const currentMonthData = r.monthlyData?.[monthKey] || r.monthlyData?.[selectedMonth] || {
+          dues: r.dues || 0,
+          previousDebt: r.previousDebt || 0,
+          gasDelay: r.gasDelay || 0,
+          gasOther: r.gasOther || 0,
+          paidAmount: r.paidAmount || 0,
+          paymentChannel: r.paymentChannel || '',
+          paymentDate: r.paymentDate || ''
+        };
+
+        const updatedMonthRecord = {
+          ...currentMonthData,
+          paidAmount: Math.max(0, (currentMonthData.paidAmount || 0) + diff)
+        };
+
+        const balanceDiff = oldT.type === 'income' ? diff : -diff;
+
+        return {
+          ...r,
+          balance: r.balance + balanceDiff,
+          paidAmount: monthKey === selectedMonth ? updatedMonthRecord.paidAmount : r.paidAmount,
+          monthlyData: {
+            ...(r.monthlyData || {}),
+            [monthKey]: updatedMonthRecord
+          }
+        };
+      }
+      return r;
+    }));
+  };
+
+  const handlePrintResidentPDF = (resident: Resident, residentApt?: Apartment) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up engelleyiciyi devre dışı bırakın.');
+      return;
+    }
+
+    const residentTrans = transactions.filter(t => t.residentId === resident.id);
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${resident.name} - Hesap Kartı</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; padding: 40px; color: #333; }
+            h1 { font-size: 24px; color: #1e1b4b; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .info-item { margin-bottom: 10px; }
+            .info-label { font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; }
+            .info-value { font-size: 15px; font-weight: bold; }
+            .balance-box { grid-column: span 2; border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 12px; }
+            .balance-value { font-size: 22px; font-weight: 800; }
+            .balance-debt { color: #ef4444; }
+            .balance-credit { color: #10b981; }
+            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 13px; }
+            th { background: #f1f5f9; color: #475569; font-weight: bold; }
+            tr:nth-child(even) { background: #f8fafc; }
+            .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+            .badge-success { background: #dcfce7; color: #15803d; }
+            .badge-danger { background: #fee2e2; color: #b91c1c; }
+            .no-print-btn { display: block; margin-bottom: 20px; padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+            @media print {
+              .no-print-btn { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="no-print-btn" onclick="window.print()">Yazdır / PDF Olarak Kaydet</button>
+          <h1>Sakin Hesap Kartı ve Cari Detayı</h1>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Sakin Adı</div>
+              <div class="info-value">${resident.name}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Bağlı Bina / Daire</div>
+              <div class="info-value">${residentApt?.name || 'Bilinmeyen Bina'} - Daire ${resident.aptNo}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Telefon</div>
+              <div class="info-value">${resident.phone}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Rolü</div>
+              <div class="info-value">${resident.type === 'ev_sahibi' ? 'Ev Sahibi' : 'Kiracı'}</div>
+            </div>
+            <div class="balance-box">
+              <div class="info-label">Güncel Hesap Bakiyesi</div>
+              <div class="balance-value ${resident.balance < 0 ? 'balance-debt' : 'balance-credit'}">
+                ${resident.balance < 0 ? `Borç: ₺${Math.abs(resident.balance).toLocaleString()}` : `Alacak: ₺${resident.balance.toLocaleString()}`}
+              </div>
+            </div>
+          </div>
+          <h2>Geçmiş Hesap Hareketleri</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Tarih</th>
+                <th>Açıklama</th>
+                <th>Tür</th>
+                <th>Tutar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${residentTrans.map(t => `
+                <tr>
+                  <td>${t.date.toLocaleDateString('tr-TR')}</td>
+                  <td>${t.description}</td>
+                  <td>
+                    <span class="badge ${t.type === 'income' ? 'badge-success' : 'badge-danger'}">
+                      ${t.type === 'income' ? 'Tahsilat' : 'Gider/Borç'}
+                    </span>
+                  </td>
+                  <td style="font-weight: bold;">₺${t.amount.toLocaleString()}</td>
+                </tr>
+              `).join('')}
+              ${residentTrans.length === 0 ? '<tr><td colspan="4" style="text-align: center; color: #64748b;">Hareket bulunmamaktadır.</td></tr>' : ''}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  };
+
   const handleDeleteTransaction = (id: string) => {
     if (window.confirm("Bu kaydı silmek istediğinize emin misiniz?")) {
+      const oldT = transactions.find(t => t.id === id);
+      if (oldT) {
+        adjustResidentBalanceOnTransactionDelete(oldT);
+      }
       setTransactions(transactions.filter(t => t.id !== id));
     }
   };
@@ -2360,41 +2743,196 @@ export default function App() {
 
   const getAptName = (id: string) => apartments.find(a => a.id === id)?.name || '';
 
-  const renderBuildingSelection = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '80vh' }}>
-      <h1 style={{ marginBottom: '16px', fontSize: '32px', fontWeight: 600 }}>Hoş Geldiniz</h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '40px' }}>İşlem yapmak istediğiniz binayı seçin.</p>
-      
-      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '800px' }}>
-        {apartments.map(apt => (
-          <div 
-            key={apt.id} 
-            className="glass-panel" 
-            style={{ 
-              padding: '32px', 
-              cursor: 'pointer', 
-              minWidth: '250px', 
-              textAlign: 'center',
-              transition: 'all 0.3s ease',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            onClick={() => { setSelectedAptId(apt.id); setActiveTab('dashboard'); }}
-          >
-            <Building size={48} style={{ margin: '0 auto 16px auto', color: 'var(--accent-color)' }} />
-            <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>{apt.name}</h3>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Aidat: ₺{apt.duesAmount}</div>
+  const renderBuildingSelection = () => {
+    const compIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const compPersExpense = transactions.filter(t => t.type === 'personnel_expense').reduce((sum, t) => sum + t.amount, 0);
+    const compOtherExpense = transactions.filter(t => t.type === 'other_expense').reduce((sum, t) => sum + t.amount, 0);
+    const compExpense = compPersExpense + compOtherExpense;
+    const compBalance = compIncome - compExpense;
+
+    const bldIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const bldExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const outstandingDebt = residents.filter(r => r.balance < 0).reduce((sum, r) => sum + Math.abs(r.balance), 0);
+
+    const activeTickets = tickets.filter(t => t.status !== 'Çözüldü');
+    const activePolls = polls.filter(p => p.active);
+
+    return (
+      <div style={{ padding: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+          <div>
+            <h1 style={{ fontSize: '32px', fontWeight: 700, background: 'linear-gradient(to right, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AtibayCRM Genel Yönetim Konsolu</h1>
+            <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Şirket kasa hareketleri, binalar, aktif anketler ve arıza talepleri genel özeti.</p>
           </div>
-        ))}
+          <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setIsBuildingModalOpen(true)}>
+            <Plus size={18} /> Yeni Bina Ekle
+          </button>
+        </div>
+
+        {/* Şirket Kasa & Cari Durumu */}
+        <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px', color: 'var(--accent-color)' }}>Şirketim & Kasa Durumu</h2>
+        <div className="dashboard-grid" style={{ marginBottom: '32px' }}>
+          <div className="glass-panel stat-card income">
+            <h3>Şirket Toplam Hasılatı</h3>
+            <div className="value">₺{compIncome.toLocaleString()}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Binalardan toplanan toplam aidatlar</div>
+          </div>
+          <div className="glass-panel stat-card expense">
+            <h3>Toplam Şirket Giderleri</h3>
+            <div className="value">₺{compExpense.toLocaleString()}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Personel maaş ve diğer genel giderler</div>
+          </div>
+          <div className="glass-panel stat-card balance" style={{
+            background: compBalance >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+          }}>
+            <h3>Net Bakiye (Kâr / Zarar)</h3>
+            <div className="value" style={{ color: compBalance >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+              ₺{compBalance.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Şirket cari hesabı</div>
+          </div>
+        </div>
+
+        {/* Binalar Finansal Özet */}
+        <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px', color: 'var(--success-color)' }}>Tüm Binalar Finansal Durumu</h2>
+        <div className="dashboard-grid" style={{ marginBottom: '32px' }}>
+          <div className="glass-panel stat-card income">
+            <h3>Toplanan Toplam Aidat</h3>
+            <div className="value">₺{bldIncome.toLocaleString()}</div>
+          </div>
+          <div className="glass-panel stat-card expense">
+            <h3>Toplam Bina Giderleri</h3>
+            <div className="value">₺{bldExpense.toLocaleString()}</div>
+          </div>
+          <div className="glass-panel stat-card balance" style={{ background: 'rgba(245, 158, 11, 0.1)' }}>
+            <h3>Sakin Toplam Borç Stoğu</h3>
+            <div className="value" style={{ color: 'var(--warning-color)' }}>
+              ₺{outstandingDebt.toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '32px', alignItems: 'start' }}>
+          {/* Sol Kolon: Binalar Kartları */}
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px' }}>Yönetilen Binalar ({apartments.length})</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {apartments.map(apt => {
+                const residentsInApt = residents.filter(r => r.apartmentId === apt.id);
+                const duesCollected = transactions.filter(t => t.apartmentId === apt.id && t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+                const bldExp = transactions.filter(t => t.apartmentId === apt.id && t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+                const aptBalance = duesCollected - bldExp;
+                const outstanding = residentsInApt.filter(r => r.balance < 0).reduce((sum, r) => sum + Math.abs(r.balance), 0);
+
+                return (
+                  <div 
+                    key={apt.id} 
+                    className="glass-panel" 
+                    style={{ 
+                      padding: '24px', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '8px' }}>{apt.name}</h3>
+                      <div style={{ display: 'flex', gap: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        <div>Daire Sayısı: <strong style={{ color: 'var(--text-primary)' }}>{residentsInApt.length}</strong></div>
+                        <div>Aylık Aidat: <strong style={{ color: 'var(--text-primary)' }}>₺{apt.duesAmount}</strong></div>
+                        <div>Bina Bakiyesi: <strong style={{ color: aptBalance >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>₺{aptBalance.toLocaleString()}</strong></div>
+                        <div>Bekleyen Alacak: <strong style={{ color: 'var(--warning-color)' }}>₺{outstanding.toLocaleString()}</strong></div>
+                      </div>
+                    </div>
+                    <button 
+                      className="btn-primary" 
+                      style={{ padding: '8px 16px', fontSize: '13px' }}
+                      onClick={() => { setSelectedAptId(apt.id); setActiveTab('dashboard'); }}
+                    >
+                      Bina Detayına Git
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sağ Kolon: Olaylar, Arızalar ve Anketler */}
+          <div>
+            {/* Aktif Arızalar */}
+            <div className="glass-panel" style={{ padding: '20px', marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Aktif Arızalar & Talepler</span>
+                <span className="badge badge-danger" style={{ fontSize: '11px' }}>{activeTickets.length} Bekleyen</span>
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '250px', overflowY: 'auto' }}>
+                {activeTickets.map(t => {
+                  const aptName = getAptName(t.apartmentId);
+                  return (
+                    <div key={t.id} style={{ borderBottom: '1px solid var(--border-card)', paddingBottom: '8px', cursor: 'pointer' }} onClick={() => setActiveTab('tickets')}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 500, fontSize: '14px' }}>{t.title}</span>
+                        <span className={`badge ${t.priority === 'Yüksek' ? 'badge-danger' : t.priority === 'Orta' ? 'badge-warning' : 'badge-info'}`} style={{ fontSize: '10px', padding: '2px 4px' }}>{t.priority}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{aptName} • Durum: <strong style={{ color: 'var(--warning-color)' }}>{t.status}</strong></div>
+                    </div>
+                  );
+                })}
+                {activeTickets.length === 0 && (
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'center', padding: '16px 0' }}>Aktif arıza talebi bulunmuyor.</div>
+                )}
+              </div>
+            </div>
+
+            {/* Aktif Anket Sonuçları */}
+            <div className="glass-panel" style={{ padding: '20px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>Aktif Anketlerin Durumu</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '280px', overflowY: 'auto' }}>
+                {activePolls.map(p => {
+                  const totalVotes = Object.keys(p.votes || {}).length;
+                  
+                  // Calculate options count
+                  const optCounts: Record<string, number> = {};
+                  p.options.forEach(o => { optCounts[o] = 0; });
+                  Object.values(p.votes || {}).forEach(v => {
+                    if (optCounts[v] !== undefined) optCounts[v]++;
+                  });
+
+                  return (
+                    <div key={p.id} style={{ borderBottom: '1px solid var(--border-card)', paddingBottom: '12px' }}>
+                      <div style={{ fontWeight: 500, fontSize: '14px', marginBottom: '8px' }}>{p.question}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Toplam Oy: {totalVotes}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {p.options.map(opt => {
+                          const count = optCounts[opt] || 0;
+                          const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                          return (
+                            <div key={opt} style={{ fontSize: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                                <span>{opt}</span>
+                                <strong>%{pct} ({count} oy)</strong>
+                              </div>
+                              <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent-color)', borderRadius: '3px' }}></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {activePolls.length === 0 && (
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'center', padding: '16px 0' }}>Aktif anket bulunmuyor.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      <div style={{ marginTop: '48px' }}>
-        <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setIsBuildingModalOpen(true)}>
-          <Plus size={18} /> Yeni Bina Ekle
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderDashboard = () => (
     <>
@@ -2519,6 +3057,10 @@ export default function App() {
         )}
  
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', paddingLeft: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Genel Yönetim</div>
+        <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
+          <FileText size={20} />
+          <span>Arızalar & Talepler</span>
+        </button>
         <button className={`nav-item ${activeTab === 'personnel' ? 'active' : ''}`} onClick={() => setActiveTab('personnel')}>
           <Briefcase size={20} />
           <span>Personeller</span>
@@ -2558,7 +3100,7 @@ export default function App() {
  
       {/* Main Content */}
       <div className="main-content">
-        {!selectedAptId && activeTab !== 'personnel' && activeTab !== 'other_expenses' && activeTab !== 'ledgers' && activeTab !== 'import' && renderBuildingSelection()}
+        {!selectedAptId && activeTab !== 'personnel' && activeTab !== 'other_expenses' && activeTab !== 'ledgers' && activeTab !== 'import' && activeTab !== 'tickets' && renderBuildingSelection()}
         
         {selectedAptId && activeTab === 'dashboard' && renderDashboard()}
 
@@ -2567,7 +3109,7 @@ export default function App() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
               <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Gelir Yönetimi</h2>
-              <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setIsIncomeModalOpen(true)}>
+              <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => openIncomeModal()}>
                 <Plus size={18} /> Yeni Gelir Ekle
               </button>
             </div>
@@ -2578,6 +3120,7 @@ export default function App() {
                     <th>Tarih</th>
                     <th>Açıklama</th>
                     <th>Tutar</th>
+                    <th style={{ width: '120px', textAlign: 'center' }}>İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2586,6 +3129,10 @@ export default function App() {
                       <td>{format(t.date, 'dd MMM yyyy')}</td>
                       <td>{t.description}</td>
                       <td style={{ color: 'var(--success-color)', fontWeight: 600 }}>₺{t.amount.toLocaleString()}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button onClick={() => openIncomeModal(t)} style={{ background: 'transparent', color: 'var(--accent-color)', marginRight: '12px' }} title="Düzenle"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDeleteTransaction(t.id)} style={{ background: 'transparent', color: 'var(--danger-color)' }} title="Sil"><Trash2 size={18} /></button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -2599,7 +3146,7 @@ export default function App() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
               <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Gider Yönetimi</h2>
-              <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setIsExpenseModalOpen(true)}>
+              <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => openExpenseModal()}>
                 <Plus size={18} /> Yeni Gider Ekle
               </button>
             </div>
@@ -2611,6 +3158,7 @@ export default function App() {
                     <th>Açıklama</th>
                     <th>Fatura</th>
                     <th>Tutar</th>
+                    <th style={{ width: '120px', textAlign: 'center' }}>İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2620,6 +3168,10 @@ export default function App() {
                       <td>{t.description}</td>
                       <td><button style={{background: 'transparent', color: 'var(--accent-color)'}}><FileText size={18} /></button></td>
                       <td style={{ color: 'var(--danger-color)', fontWeight: 600 }}>₺{t.amount.toLocaleString()}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button onClick={() => openExpenseModal(t)} style={{ background: 'transparent', color: 'var(--accent-color)', marginRight: '12px' }} title="Düzenle"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDeleteTransaction(t.id)} style={{ background: 'transparent', color: 'var(--danger-color)' }} title="Sil"><Trash2 size={18} /></button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -2634,7 +3186,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
                <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Sakinler & Borçlandırma</h2>
                <div style={{ display: 'flex', gap: '12px' }}>
-                 <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setIsFuelExpenseModalOpen(true)}>
+                 <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => { setSelectedAptIdForFuel(selectedAptId || apartments[0]?.id || ''); setIsFuelExpenseModalOpen(true); }}>
                     <Upload size={18} /> Yakıt Gideri (Excel)
                  </button>
                  <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setIsDebtModalOpen(true)}>
@@ -2875,33 +3427,308 @@ export default function App() {
           </div>
         )}
 
-        {/* DUYURULAR TAB */}
+        {/* DUYURULAR & ANKETLER TAB */}
         {activeTab === 'announcements' && (
-          <div>
-            <h2 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Duyurular</h2>
-            <div className="glass-panel" style={{ padding: '24px' }}>
-               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '14px' }}>Mesaj İçeriği</label>
-               <textarea 
-                  className="input-field" 
-                  rows={4} 
-                  placeholder="Sakinlere gönderilecek duyuruyu yazın..."
-               ></textarea>
-               
-               <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', marginTop: '12px' }}>
-                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                   <input type="checkbox" checked={sendPush} onChange={(e) => setSendPush(e.target.checked)} style={{ width: '18px', height: '18px' }} />
-                   <span>Mobil Uygulama (Push Bildirimi)</span>
-                 </label>
-                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                   <input type="checkbox" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} style={{ width: '18px', height: '18px' }} />
-                   <span>WhatsApp Mesajı</span>
-                 </label>
-               </div>
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'start' }}>
+                {/* Sol Taraf: Duyuru Gönderme */}
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Genel Duyurular</h2>
+                  <div className="glass-panel" style={{ padding: '24px', marginBottom: '32px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '14px' }}>Mesaj İçeriği</label>
+                    <textarea 
+                      className="input-field" 
+                      rows={4} 
+                      placeholder="Sakinlere gönderilecek duyuruyu yazın..."
+                    ></textarea>
+                    
+                    <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', marginTop: '12px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={sendPush} onChange={(e) => setSendPush(e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                        <span>Mobil Bildirim (Push)</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                        <span>WhatsApp Mesajı</span>
+                      </label>
+                    </div>
 
-               <button className="btn-primary">Duyuru Gönder</button>
+                    <button className="btn-primary" onClick={() => alert('Duyuru tüm sakinlere başarıyla gönderildi!')}>Duyuru Gönder</button>
+                  </div>
+
+                  {/* Anket Oluşturma */}
+                  <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '20px' }}>Yeni Anket Oluştur</h2>
+                  <div className="glass-panel" style={{ padding: '24px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>ANKET SORUSU</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Örn: Apartman kapısı şifresi ne zaman değiştirilsin?"
+                      value={newPollQuestion}
+                      onChange={(e) => setNewPollQuestion(e.target.value)}
+                    />
+
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>HEDEF BİNA / APARTMAN</label>
+                    <select 
+                      className="input-field" 
+                      value={newPollTargetId} 
+                      onChange={(e) => setNewPollTargetId(e.target.value)}
+                      style={{ padding: '10px' }}
+                    >
+                      <option value="all">Tüm Binalar (Genel)</option>
+                      {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>SEÇENEKLER</label>
+                    {newPollOptions.map((opt, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder={`Seçenek ${idx + 1}`}
+                          value={opt}
+                          onChange={(e) => {
+                            const newOpts = [...newPollOptions];
+                            newOpts[idx] = e.target.value;
+                            setNewPollOptions(newOpts);
+                          }}
+                          style={{ marginBottom: '8px' }}
+                        />
+                        {idx >= 2 && (
+                          <button 
+                            onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}
+                            style={{ background: 'transparent', color: 'var(--danger-color)', padding: '8px' }}
+                          >
+                            Sil
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {newPollOptions.length < 5 && (
+                      <button 
+                        className="btn-secondary" 
+                        onClick={handleAddPollOption} 
+                        style={{ fontSize: '12px', padding: '6px 12px', marginBottom: '16px', display: 'block' }}
+                      >
+                        + Seçenek Ekle
+                      </button>
+                    )}
+
+                    <button className="btn-success" style={{ width: '100%' }} onClick={handleSavePoll}>Anketi Yayınla</button>
+                  </div>
+                </div>
+
+                {/* Sağ Taraf: Anket Listesi & Sonuçları */}
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Aktif Anketler & Sonuçlar</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {polls.map(p => {
+                      const totalVotes = Object.keys(p.votes || {}).length;
+                      const optCounts: Record<string, number> = {};
+                      p.options.forEach(o => { optCounts[o] = 0; });
+                      Object.values(p.votes || {}).forEach(v => {
+                        if (optCounts[v] !== undefined) optCounts[v]++;
+                      });
+
+                      return (
+                        <div key={p.id} className="glass-panel" style={{ padding: '24px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <span className={`badge ${p.active ? 'badge-success' : 'badge-danger'}`}>
+                              {p.active ? 'Aktif / Yayında' : 'Kapalı'}
+                            </span>
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              Bina: {p.targetBuildingId === 'all' ? 'Tüm Binalar' : getAptName(p.targetBuildingId)}
+                            </span>
+                          </div>
+                          
+                          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>{p.question}</h3>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>Toplam Katılım: {totalVotes} Sakin</div>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                            {p.options.map(opt => {
+                              const count = optCounts[opt] || 0;
+                              const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                              return (
+                                <div key={opt}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                                    <span>{opt}</span>
+                                    <strong>%{pct} ({count} Oy)</strong>
+                                  </div>
+                                  <div style={{ width: '100%', height: '8px', background: 'rgba(15, 23, 42, 0.6)', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent-color)', borderRadius: '4px' }}></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            <button 
+                              className="btn-secondary" 
+                              onClick={() => handleTogglePoll(p.id)}
+                              style={{ flex: 1, fontSize: '12px', padding: '6px' }}
+                            >
+                              {p.active ? 'Anketi Kapat' : 'Anketi Aç'}
+                            </button>
+                            <button 
+                              className="btn-danger" 
+                              onClick={() => handleDeletePoll(p.id)}
+                              style={{ flex: 1, fontSize: '12px', padding: '6px', background: 'var(--danger-color)' }}
+                            >
+                              Sil
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {polls.length === 0 && (
+                      <div className="glass-panel" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                        Kayıtlı anket bulunmuyor. Sol taraftan hemen yeni bir anket oluşturabilirsiniz.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
         )}
+
+        {/* ARIZALAR & TALEPLER TAB */}
+        {activeTab === 'tickets' && (() => {
+          const filteredTickets = filterBuildingId === 'all'
+            ? tickets
+            : tickets.filter(t => t.apartmentId === filterBuildingId);
+
+          return (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Arızalar, Talepler & İş Takibi</h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
+                    Sakinlerin mobil uygulamadan bildirdiği teknik sorunların takibi, personele atanması ve durum güncellemeleri.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <label htmlFor="bldTicketFilter" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Bina Filtresi:</label>
+                  <select
+                    id="bldTicketFilter"
+                    className="input-field"
+                    value={filterBuildingId}
+                    onChange={(e) => setFilterBuildingId(e.target.value)}
+                    style={{ padding: '8px 12px', width: '220px', marginBottom: 0 }}
+                  >
+                    <option value="all">Tüm Binalar</option>
+                    {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
+                <table style={{ fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '130px' }}>Tarih</th>
+                      <th>Bina</th>
+                      <th>Bildiren Daire</th>
+                      <th>Konu / Başlık</th>
+                      <th>Açıklama</th>
+                      <th style={{ width: '100px' }}>Öncelik</th>
+                      <th style={{ width: '110px' }}>Durum</th>
+                      <th style={{ width: '150px' }}>Atanan Personel</th>
+                      <th>Çözüm / Notlar</th>
+                      <th style={{ width: '120px', textAlign: 'center' }}>İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTickets.map(t => {
+                      const isEditing = editingTicketId === t.id;
+                      const staffName = staffs.find(s => s.id === t.assignedStaffId)?.name || 'Atanmadı';
+                      const aptName = getAptName(t.apartmentId);
+
+                      return (
+                        <tr key={t.id}>
+                          <td>{format(new Date(t.createdAt), 'dd.MM.yyyy HH:mm')}</td>
+                          <td style={{ fontWeight: 600 }}>{aptName}</td>
+                          <td>{getResidentName(t.residentId)} (Daire {getResidentAptNo(t.residentId)})</td>
+                          <td style={{ fontWeight: 500 }}>{t.title}</td>
+                          <td style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '200px' }}>{t.description}</td>
+                          <td>
+                            <span className={`badge ${t.priority === 'Yüksek' ? 'badge-danger' : t.priority === 'Orta' ? 'badge-warning' : 'badge-info'}`}>
+                              {t.priority}
+                            </span>
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <select 
+                                className="input-field" 
+                                value={editStatus}
+                                onChange={(e) => setEditStatus(e.target.value as any)}
+                                style={{ padding: '6px', fontSize: '12px', marginBottom: 0 }}
+                              >
+                                <option value="Açık">Açık</option>
+                                <option value="İşlemde">İşlemde</option>
+                                <option value="Çözüldü">Çözüldü</option>
+                              </select>
+                            ) : (
+                              <span className={`badge ${t.status === 'Çözüldü' ? 'badge-success' : t.status === 'İşlemde' ? 'badge-warning' : 'badge-danger'}`}>
+                                {t.status}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <select 
+                                className="input-field" 
+                                value={editStaffId || ''}
+                                onChange={(e) => setEditStaffId(e.target.value || null)}
+                                style={{ padding: '6px', fontSize: '12px', marginBottom: 0 }}
+                              >
+                                <option value="">Atanmadı</option>
+                                {staffs.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
+                              </select>
+                            ) : (
+                              <span style={{ fontWeight: 500 }}>{staffName}</span>
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <input 
+                                type="text"
+                                className="input-field"
+                                value={editNotes}
+                                onChange={(e) => setEditNotes(e.target.value)}
+                                placeholder="Çözüm notu..."
+                                style={{ padding: '6px', fontSize: '12px', marginBottom: 0 }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{t.resolutionNotes || '-'}</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {isEditing ? (
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button className="btn-success" style={{ padding: '6px 10px', fontSize: '11px' }} onClick={() => handleSaveTicket(t.id)}>Kaydet</button>
+                                <button className="btn-primary" style={{ padding: '6px 10px', fontSize: '11px', background: 'var(--text-secondary)' }} onClick={() => setEditingTicketId(null)}>İptal</button>
+                              </div>
+                            ) : (
+                              <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleStartEdit(t)}>Düzenle</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredTickets.length === 0 && (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '24px' }}>
+                          Arıza veya talep kaydı bulunmuyor.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* PERSONEL TAB */}
         {activeTab === 'personnel' && (
@@ -3440,11 +4267,11 @@ export default function App() {
 
       {/* Income Modal */}
       {isIncomeModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="glass-panel modal-content">
             <div className="modal-header">
-              <h3 style={{ fontSize: '20px' }}>Yeni Gelir Ekle</h3>
-              <button className="close-btn" onClick={() => setIsIncomeModalOpen(false)}><X size={24} /></button>
+              <h3 style={{ fontSize: '20px' }}>{editingTransactionId ? 'Geliri Düzenle' : 'Yeni Gelir Ekle'}</h3>
+              <button className="close-btn" onClick={() => { setIsIncomeModalOpen(false); setEditingTransactionId(null); setDescription(''); setAmount(''); }}><X size={24} /></button>
             </div>
             <input 
               type="text" 
@@ -3461,7 +4288,7 @@ export default function App() {
               onChange={(e) => setAmount(e.target.value)}
             />
             <button className="btn-success" style={{ width: '100%' }} onClick={() => handleSaveTransaction('income')}>
-              Kaydet
+              {editingTransactionId ? 'Güncelle' : 'Kaydet'}
             </button>
           </div>
         </div>
@@ -3469,11 +4296,11 @@ export default function App() {
 
       {/* Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="glass-panel modal-content">
             <div className="modal-header">
-              <h3 style={{ fontSize: '20px' }}>Yeni Gider/Fatura Ekle</h3>
-              <button className="close-btn" onClick={() => setIsExpenseModalOpen(false)}><X size={24} /></button>
+              <h3 style={{ fontSize: '20px' }}>{editingTransactionId ? 'Gideri Düzenle' : 'Yeni Gider/Fatura Ekle'}</h3>
+              <button className="close-btn" onClick={() => { setIsExpenseModalOpen(false); setEditingTransactionId(null); setDescription(''); setAmount(''); }}><X size={24} /></button>
             </div>
             <input 
               type="text" 
@@ -3494,7 +4321,7 @@ export default function App() {
               <input type="file" style={{ color: 'var(--text-primary)' }} />
             </div>
             <button className="btn-danger" style={{ width: '100%' }} onClick={() => handleSaveTransaction('expense')}>
-              Kaydet
+              {editingTransactionId ? 'Güncelle' : 'Kaydet'}
             </button>
           </div>
         </div>
@@ -3799,7 +4626,7 @@ export default function App() {
 
       {/* Personnel Expense Modal */}
       {isPersonnelExpenseModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="glass-panel modal-content">
             <div className="modal-header">
               <h3 style={{ fontSize: '20px' }}>{editingTransactionId ? 'Gideri Düzenle' : 'Personel Gideri Ekle'}</h3>
@@ -3828,7 +4655,7 @@ export default function App() {
 
       {/* Other Expense Modal */}
       {isOtherExpenseModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="glass-panel modal-content">
             <div className="modal-header">
               <h3 style={{ fontSize: '20px' }}>{editingTransactionId ? 'Gideri Düzenle' : 'Diğer Gider Ekle'}</h3>
@@ -3867,9 +4694,26 @@ export default function App() {
         return (
           <div className="modal-overlay">
             <div className="glass-panel modal-content" style={{ maxWidth: '700px', width: '90%' }}>
-              <div className="modal-header">
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '22px', fontWeight: 600 }}>Sakin Hesap Kartı ve Cari Detayı</h3>
-                <button className="close-btn" onClick={() => { setIsResidentDetailModalOpen(false); setSelectedResidentId(null); }}><X size={24} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button 
+                    className="btn-primary" 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      padding: '6px 12px', 
+                      fontSize: '13px', 
+                      background: 'var(--warning-color)',
+                    }} 
+                    onClick={() => handlePrintResidentPDF(resident, residentApt)}
+                  >
+                    <Printer size={16} />
+                    Yazdır / PDF
+                  </button>
+                  <button className="close-btn" onClick={() => { setIsResidentDetailModalOpen(false); setSelectedResidentId(null); }}><X size={24} /></button>
+                </div>
               </div>
 
               {/* Sakin Künyesi */}
@@ -3964,6 +4808,7 @@ export default function App() {
                         <th>Açıklama</th>
                         <th>Tür</th>
                         <th>Tutar</th>
+                        <th>İşlem</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3977,11 +4822,39 @@ export default function App() {
                             </span>
                           </td>
                           <td style={{ fontWeight: 600 }}>₺{t.amount.toLocaleString()}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                onClick={() => {
+                                  if (t.type === 'income') {
+                                    openIncomeModal(t);
+                                  } else if (t.type === 'expense') {
+                                    openExpenseModal(t);
+                                  } else if (t.type === 'personnel_expense') {
+                                    openTransactionModal('personnel_expense', t);
+                                  } else if (t.type === 'other_expense') {
+                                    openTransactionModal('other_expense', t);
+                                  }
+                                }} 
+                                style={{ background: 'transparent', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', padding: 0 }} 
+                                title="Düzenle"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteTransaction(t.id)} 
+                                style={{ background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', padding: 0 }} 
+                                title="Sil"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                       {residentTrans.length === 0 && (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Ödeme hareketi bulunmuyor.</td>
+                          <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Ödeme hareketi bulunmuyor.</td>
                         </tr>
                       )}
                     </tbody>
@@ -4100,6 +4973,21 @@ export default function App() {
             <div className="modal-header">
               <h3 style={{ fontSize: '20px', fontWeight: 600 }}>Yakıt Gideri Excel Paylaştırma</h3>
               <button className="close-btn" onClick={() => { setIsFuelExpenseModalOpen(false); setFuelPreviewList([]); }}><X size={24} /></button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>İŞLEM YAPILACAK BİNA</label>
+              <select 
+                className="input-field" 
+                value={selectedAptIdForFuel} 
+                onChange={(e) => {
+                  setSelectedAptIdForFuel(e.target.value);
+                  setFuelPreviewList([]);
+                }}
+                style={{ padding: '10px' }}
+              >
+                {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
             </div>
             
             <div style={{ marginBottom: '16px' }}>
