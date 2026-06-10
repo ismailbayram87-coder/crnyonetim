@@ -105,6 +105,11 @@ interface Resident {
   monthlyData?: Record<string, MonthlyRecord>;
   password?: string;
   isPasswordChanged?: boolean;
+  ownerName?: string;
+  ownerPhone?: string;
+  tenantName?: string;
+  tenantPhone?: string;
+  duesGroupId?: string;
 }
 
 interface Transaction {
@@ -116,6 +121,10 @@ interface Transaction {
   date: string;
   residentId?: string;
   receiptUrl?: string;
+  vendorId?: string;
+  status?: 'Ödendi' | 'Ödenmedi';
+  dueDate?: string;
+  debtorType?: 'kiraci' | 'ev_sahibi';
 }
 
 interface Poll {

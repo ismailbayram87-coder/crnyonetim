@@ -23,13 +23,27 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import' | 'sheet' | 'tickets';
+type Tab = 'dashboard' | 'income' | 'expense' | 'residents' | 'announcements' | 'buildings' | 'personnel' | 'other_expenses' | 'ledgers' | 'import' | 'sheet' | 'tickets' | 'dues_groups' | 'vendors';
 
 interface Apartment {
   id: string;
   name: string;
   duesDay: number;
   duesAmount: number;
+}
+
+interface DuesGroup {
+  id: string;
+  apartmentId: string;
+  name: string;
+  amount: number;
+}
+
+interface Vendor {
+  id: string;
+  name: string;
+  phone?: string;
+  category?: string;
 }
 
 interface Poll {
@@ -65,6 +79,10 @@ interface Transaction {
   residentId?: string;
   receiptUrl?: string;
   staffId?: string; // Hangi personele ödeme yapıldı
+  vendorId?: string; // Hangi cariye/firmaya ödeme yapıldı / borçlanıldı
+  status?: 'Ödendi' | 'Ödenmedi';
+  dueDate?: string;
+  debtorType?: 'kiraci' | 'ev_sahibi';
 }
 
 interface Staff {
@@ -101,6 +119,11 @@ interface Resident {
   paymentChannel?: string;
   paymentDate?: string;
   monthlyData?: Record<string, MonthlyRecord>;
+  ownerName?: string;
+  ownerPhone?: string;
+  tenantName?: string;
+  tenantPhone?: string;
+  duesGroupId?: string;
 }
 
 interface StaffJob {
@@ -1317,6 +1340,8 @@ export default function App() {
   const [availableMonths, setAvailableMonths] = useState<string[]>(['2026-01']);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [duesGroups, setDuesGroups] = useState<DuesGroup[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
 
   // API Load Effect
@@ -1333,6 +1358,8 @@ export default function App() {
         setAvailableMonths(data.availableMonths || ['2026-01']);
         setPolls(data.polls || []);
         setTickets(data.tickets || []);
+        setDuesGroups(data.duesGroups || []);
+        setVendors(data.vendors || []);
         setLoading(false);
       })
       .catch(err => {
@@ -1349,6 +1376,10 @@ export default function App() {
         setStaffJobs(savedJobs ? JSON.parse(savedJobs).map((j: any) => ({ ...j, date: new Date(j.date) })) : INITIAL_STAFF_JOBS);
         const savedMonths = localStorage.getItem('crm_available_months');
         setAvailableMonths(savedMonths ? JSON.parse(savedMonths) : ['2026-01', '2026-02', '2026-03']);
+        const savedDuesGroups = localStorage.getItem('crm_dues_groups');
+        setDuesGroups(savedDuesGroups ? JSON.parse(savedDuesGroups) : []);
+        const savedVendors = localStorage.getItem('crm_vendors');
+        setVendors(savedVendors ? JSON.parse(savedVendors) : []);
         setPredefinedJobs(INITIAL_PREDEFINED_JOBS);
         setPolls([
           {
@@ -1391,7 +1422,9 @@ export default function App() {
       predefinedJobs,
       availableMonths,
       polls,
-      tickets
+      tickets,
+      duesGroups,
+      vendors
     };
     fetch('http://localhost:5000/api/save', {
       method: 'POST',
@@ -1405,7 +1438,9 @@ export default function App() {
     localStorage.setItem('crm_staffs', JSON.stringify(staffs));
     localStorage.setItem('crm_staff_jobs', JSON.stringify(staffJobs));
     localStorage.setItem('crm_available_months', JSON.stringify(availableMonths));
-  }, [apartments, residents, transactions, staffs, staffJobs, predefinedJobs, availableMonths, polls, tickets, loading]);
+    localStorage.setItem('crm_dues_groups', JSON.stringify(duesGroups));
+    localStorage.setItem('crm_vendors', JSON.stringify(vendors));
+  }, [apartments, residents, transactions, staffs, staffJobs, predefinedJobs, availableMonths, polls, tickets, duesGroups, vendors, loading]);
 
   const handleResetToDefaults = () => {
     if (window.confirm("Tüm yerel verileri sıfırlayıp Elitkent B Blok gerçek verilerini ve varsayılan ayarları yeniden yüklemek istediğinize emin misiniz? Bu işlem yaptığınız tüm değişiklikleri geri alacaktır.")) {
@@ -1416,6 +1451,8 @@ export default function App() {
       localStorage.removeItem('crm_staff_jobs');
       localStorage.removeItem('crm_predefined_jobs');
       localStorage.removeItem('crm_available_months');
+      localStorage.removeItem('crm_dues_groups');
+      localStorage.removeItem('crm_vendors');
       window.location.reload();
     }
   };
@@ -1504,6 +1541,9 @@ export default function App() {
   // Income / Expense Forms
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [expenseVendorId, setExpenseVendorId] = useState('');
+  const [expenseStatus, setExpenseStatus] = useState<'Ödendi' | 'Ödenmedi'>('Ödenmedi');
+  const [expenseDueDate, setExpenseDueDate] = useState('');
   
   // Resident Form
   const [resName, setResName] = useState('');
@@ -1511,6 +1551,25 @@ export default function App() {
   const [resPhone, setResPhone] = useState('');
   const [resType, setResType] = useState<'kiraci'|'ev_sahibi'>('kiraci');
   const [resAptId, setResAptId] = useState(apartments[0]?.id || '');
+  const [resOwnerName, setResOwnerName] = useState('');
+  const [resOwnerPhone, setResOwnerPhone] = useState('');
+  const [resTenantName, setResTenantName] = useState('');
+  const [resTenantPhone, setResTenantPhone] = useState('');
+  const [resDuesGroupId, setResDuesGroupId] = useState('');
+
+  // Dues Group Modal & Form States
+  const [isDuesGroupModalOpen, setIsDuesGroupModalOpen] = useState(false);
+  const [editingDuesGroupId, setEditingDuesGroupId] = useState<string | null>(null);
+  const [duesGroupName, setDuesGroupName] = useState('');
+  const [duesGroupAmount, setDuesGroupAmount] = useState('');
+  const [duesGroupAptId, setDuesGroupAptId] = useState(apartments[0]?.id || '');
+
+  // Vendor Modal & Form States
+  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+  const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
+  const [vendorName, setVendorName] = useState('');
+  const [vendorPhone, setVendorPhone] = useState('');
+  const [vendorCategory, setVendorCategory] = useState('');
 
   // Muhasebe Defteri (Spreadsheet) States
   const [sheetSearch, setSheetSearch] = useState('');
@@ -1594,7 +1653,8 @@ export default function App() {
         adjustResidentBalanceOnTransactionEdit(oldT, parseFloat(amount));
       }
       setTransactions(transactions.map(t => t.id === editingTransactionId ? {
-        ...t, description, amount: parseFloat(amount)
+        ...t, description, amount: parseFloat(amount),
+        ...(type === 'expense' ? { vendorId: expenseVendorId || undefined, status: expenseStatus, dueDate: expenseDueDate || undefined } : {})
       } : t));
     } else {
       const newTransaction: Transaction = {
@@ -1603,14 +1663,24 @@ export default function App() {
         type,
         amount: parseFloat(amount),
         description,
-        date: new Date()
+        date: new Date(),
+        ...(type === 'expense' ? { vendorId: expenseVendorId || undefined, status: expenseStatus, dueDate: expenseDueDate || undefined } : {})
       };
       setTransactions([newTransaction, ...transactions]);
     }
     setAmount(''); setDescription('');
+    setExpenseVendorId(''); setExpenseStatus('Ödenmedi'); setExpenseDueDate('');
     setEditingTransactionId(null);
     setIsIncomeModalOpen(false); setIsExpenseModalOpen(false);
     setIsOtherExpenseModalOpen(false); setIsPersonnelExpenseModalOpen(false);
+  };
+
+  // Cari gider ödemesi yap - Ödenmedi -> Ödendi olarak işaretler
+  const handlePayVendorExpense = (transactionId: string) => {
+    setTransactions(transactions.map(t => 
+      t.id === transactionId ? { ...t, status: 'Ödendi' } : t
+    ));
+    alert('Gider ödendi olarak işaretlendi.');
   };
 
   // 1. Personel Görev Ekleme
@@ -2087,10 +2157,16 @@ export default function App() {
       setEditingTransactionId(transaction.id);
       setDescription(transaction.description);
       setAmount(transaction.amount.toString());
+      setExpenseVendorId(transaction.vendorId || '');
+      setExpenseStatus(transaction.status || 'Ödenmedi');
+      setExpenseDueDate(transaction.dueDate || '');
     } else {
       setEditingTransactionId(null);
       setDescription('');
       setAmount('');
+      setExpenseVendorId('');
+      setExpenseStatus('Ödenmedi');
+      setExpenseDueDate('');
     }
     setIsExpenseModalOpen(true);
   };
@@ -2408,13 +2484,23 @@ export default function App() {
       setResPhone(resident.phone);
       setResType(resident.type);
       setResAptId(resident.apartmentId);
+      setResOwnerName(resident.ownerName || '');
+      setResOwnerPhone(resident.ownerPhone || '');
+      setResTenantName(resident.tenantName || '');
+      setResTenantPhone(resident.tenantPhone || '');
+      setResDuesGroupId(resident.duesGroupId || '');
     } else {
       setEditingResidentId(null);
       setResName('');
       setResAptNo('');
       setResPhone('');
       setResType('kiraci');
-      setResAptId(selectedAptId || apartments[0].id);
+      setResAptId(selectedAptId || apartments[0]?.id || '');
+      setResOwnerName('');
+      setResOwnerPhone('');
+      setResTenantName('');
+      setResTenantPhone('');
+      setResDuesGroupId('');
     }
     setIsResidentModalOpen(true);
   };
@@ -2422,16 +2508,28 @@ export default function App() {
   const handleSaveResident = () => {
     if(!resName || !resAptNo || !resPhone) return;
     
+    const targetDuesAmount = duesGroups.find(dg => dg.id === resDuesGroupId)?.amount ?? (apartments.find(a => a.id === resAptId)?.duesAmount ?? 1000);
+
     if (editingResidentId) {
       setResidents(residents.map(r => r.id === editingResidentId ? {
         ...r,
-        name: resName, aptNo: resAptNo, phone: resPhone, type: resType, apartmentId: resAptId
+        name: resName, 
+        aptNo: resAptNo, 
+        phone: resPhone, 
+        type: resType, 
+        apartmentId: resAptId,
+        ownerName: resOwnerName,
+        ownerPhone: resOwnerPhone,
+        tenantName: resTenantName,
+        tenantPhone: resTenantPhone,
+        duesGroupId: resDuesGroupId,
+        dues: targetDuesAmount
       } : r));
     } else {
       const mData: Record<string, MonthlyRecord> = {};
       availableMonths.forEach(m => {
         mData[m] = {
-          dues: 430,
+          dues: targetDuesAmount,
           previousDebt: 0,
           gasDelay: 0,
           gasOther: 0,
@@ -2448,18 +2546,113 @@ export default function App() {
         phone: resPhone,
         balance: 0,
         type: resType,
-        dues: 430,
+        dues: targetDuesAmount,
         previousDebt: 0,
         gasDelay: 0,
         gasOther: 0,
         paidAmount: 0,
         paymentChannel: '',
         paymentDate: '',
-        monthlyData: mData
+        monthlyData: mData,
+        ownerName: resOwnerName,
+        ownerPhone: resOwnerPhone,
+        tenantName: resTenantName,
+        tenantPhone: resTenantPhone,
+        duesGroupId: resDuesGroupId
       };
       setResidents([...residents, newResident]);
     }
     setIsResidentModalOpen(false);
+  };
+
+  // Dues Group Actions
+  const handleOpenDuesGroupModal = (group?: DuesGroup) => {
+    if (group) {
+      setEditingDuesGroupId(group.id);
+      setDuesGroupName(group.name);
+      setDuesGroupAmount(group.amount.toString());
+      setDuesGroupAptId(group.apartmentId);
+    } else {
+      setEditingDuesGroupId(null);
+      setDuesGroupName('');
+      setDuesGroupAmount('');
+      setDuesGroupAptId(selectedAptId || apartments[0]?.id || '');
+    }
+    setIsDuesGroupModalOpen(true);
+  };
+
+  const handleSaveDuesGroup = () => {
+    if (!duesGroupName || !duesGroupAmount) return;
+    const amountVal = parseFloat(duesGroupAmount);
+    if (isNaN(amountVal)) return;
+
+    if (editingDuesGroupId) {
+      setDuesGroups(duesGroups.map(g => g.id === editingDuesGroupId ? {
+        ...g,
+        name: duesGroupName,
+        amount: amountVal,
+        apartmentId: duesGroupAptId
+      } : g));
+    } else {
+      const newGroup: DuesGroup = {
+        id: Math.random().toString(),
+        apartmentId: duesGroupAptId,
+        name: duesGroupName,
+        amount: amountVal
+      };
+      setDuesGroups([...duesGroups, newGroup]);
+    }
+    setIsDuesGroupModalOpen(false);
+  };
+
+  const handleDeleteDuesGroup = (id: string) => {
+    if (window.confirm("Bu aidat grubunu silmek istediğinize emin misiniz?")) {
+      setDuesGroups(duesGroups.filter(g => g.id !== id));
+    }
+  };
+
+  // Vendor Actions
+  const handleOpenVendorModal = (vendor?: Vendor) => {
+    if (vendor) {
+      setEditingVendorId(vendor.id);
+      setVendorName(vendor.name);
+      setVendorPhone(vendor.phone || '');
+      setVendorCategory(vendor.category || '');
+    } else {
+      setEditingVendorId(null);
+      setVendorName('');
+      setVendorPhone('');
+      setVendorCategory('');
+    }
+    setIsVendorModalOpen(true);
+  };
+
+  const handleSaveVendor = () => {
+    if (!vendorName) return;
+
+    if (editingVendorId) {
+      setVendors(vendors.map(v => v.id === editingVendorId ? {
+        ...v,
+        name: vendorName,
+        phone: vendorPhone,
+        category: vendorCategory
+      } : v));
+    } else {
+      const newVendor: Vendor = {
+        id: Math.random().toString(),
+        name: vendorName,
+        phone: vendorPhone,
+        category: vendorCategory
+      };
+      setVendors([...vendors, newVendor]);
+    }
+    setIsVendorModalOpen(false);
+  };
+
+  const handleDeleteVendor = (id: string) => {
+    if (window.confirm("Bu cari firmayı silmek istediğinize emin misiniz?")) {
+      setVendors(vendors.filter(v => v.id !== id));
+    }
   };
 
   const openSheetEditModal = (resident: Resident) => {
@@ -2935,15 +3128,18 @@ export default function App() {
   };
 
   const renderDashboard = () => (
-    <>
+    <div style={{ padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Genel Durum - {selectedAptId ? getAptName(selectedAptId) : ''}</h2>
+        <div>
+          <h2 style={{ fontSize: '28px', fontWeight: 600 }}>{getAptName(selectedAptId!)} - Finansal Durum</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>Binanın gelir-gider dengesi ve güncel kasa durumu.</p>
+        </div>
         <div style={{ display: 'flex', gap: '12px' }} className="no-print">
           <button className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={handleExportExcel}>
-            <Download size={18} /> Excel Rapor İndir
+            <Download size={18} /> Excel Rapor
           </button>
           <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--warning-color)' }} onClick={handlePrintPDF}>
-            <Printer size={18} /> PDF Raporu Al
+            <Printer size={18} /> PDF Yazdır
           </button>
         </div>
       </div>
@@ -2952,19 +3148,22 @@ export default function App() {
         <div className="glass-panel stat-card income">
           <h3>Toplam Gelir</h3>
           <div className="value">₺{totalIncome.toLocaleString()}</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Toplanan tüm aidatlar</div>
         </div>
         <div className="glass-panel stat-card expense">
           <h3>Toplam Gider</h3>
           <div className="value">₺{totalExpense.toLocaleString()}</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Yapılan tüm ödemeler</div>
         </div>
-        <div className="glass-panel stat-card balance">
+        <div className="glass-panel stat-card balance" style={{ background: balance >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)' }}>
           <h3>Kasa Bakiyesi</h3>
-          <div className="value">₺{balance.toLocaleString()}</div>
+          <div className="value" style={{ color: balance >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>₺{balance.toLocaleString()}</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Mevcut nakit durumu</div>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: '24px' }}>
-        <h3 style={{ marginBottom: '16px' }}>Son İşlemler</h3>
+      <div className="glass-panel" style={{ padding: '24px', marginTop: '24px' }}>
+        <h3 style={{ marginBottom: '16px' }}>En Son İşlemler</h3>
         <div className="table-container">
           <table>
             <thead>
@@ -2976,7 +3175,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.slice(0, 5).map(t => (
+              {filteredTransactions.slice(0, 8).map(t => (
                 <tr key={t.id}>
                   <td>{format(t.date, 'dd MMM yyyy')}</td>
                   <td>{t.description}</td>
@@ -2997,7 +3196,7 @@ export default function App() {
           </table>
         </div>
       </div>
-    </>
+    </div>
   );
 
   return (
@@ -3044,6 +3243,10 @@ export default function App() {
               <Users size={20} />
               <span>Sakinler & Borçlandırma</span>
             </button>
+            <button className={`nav-item ${activeTab === 'dues_groups' ? 'active' : ''}`} onClick={() => setActiveTab('dues_groups')}>
+              <Grid size={20} />
+              <span>Aidat Grupları</span>
+            </button>
             <button className={`nav-item ${activeTab === 'sheet' ? 'active' : ''}`} onClick={() => setActiveTab('sheet')}>
               <Grid size={20} />
               <span>Muhasebe Defteri</span>
@@ -3072,6 +3275,10 @@ export default function App() {
         <button className={`nav-item ${activeTab === 'ledgers' ? 'active' : ''}`} onClick={() => setActiveTab('ledgers')}>
           <Activity size={20} />
           <span>Cari Kasa</span>
+        </button>
+        <button className={`nav-item ${activeTab === 'vendors' ? 'active' : ''}`} onClick={() => setActiveTab('vendors')}>
+          <Users size={20} />
+          <span>Firmalar & Cariler</span>
         </button>
         <button className={`nav-item ${activeTab === 'import' ? 'active' : ''}`} onClick={() => { setImportStep(1); setImportRawText(''); setActiveTab('import'); }}>
           <Upload size={20} />
@@ -3150,30 +3357,93 @@ export default function App() {
                 <Plus size={18} /> Yeni Gider Ekle
               </button>
             </div>
+
+            {/* Ödenmemiş Giderler Özeti */}
+            {(() => {
+              const unpaidExpenses = filteredTransactions.filter(t => t.type === 'expense' && t.status === 'Ödenmedi');
+              const unpaidTotal = unpaidExpenses.reduce((s, t) => s + t.amount, 0);
+              return unpaidExpenses.length > 0 ? (
+                <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '16px', color: 'var(--danger-color)' }}>⚠️ Ödenmemiş Giderler</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>{unpaidExpenses.length} adet fatura bekleniyor &mdash; Toplam: <strong style={{ color: 'var(--danger-color)' }}>₺{unpaidTotal.toLocaleString()}</strong></div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {unpaidExpenses.map(t => {
+                      const vendor = vendors.find(v => v.id === t.vendorId);
+                      return (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '12px 16px' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{t.description}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              {vendor ? <span style={{ color: '#f59e0b' }}>{vendor.name} &bull; </span> : ''}
+                              {format(t.date, 'dd MMM yyyy')}
+                              {t.dueDate ? <span style={{ color: 'var(--danger-color)' }}> &bull; Vade: {t.dueDate}</span> : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--danger-color)', fontSize: '16px' }}>₺{t.amount.toLocaleString()}</span>
+                            <button
+                              className="btn-success"
+                              style={{ fontSize: '12px', padding: '6px 12px', whiteSpace: 'nowrap' }}
+                              onClick={() => handlePayVendorExpense(t.id)}
+                            >
+                              ✔ Ödendi
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
             <div className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--text-secondary)' }}>Tüm Gider Kayıtları</h3>
               <table>
                 <thead>
                   <tr>
                     <th>Tarih</th>
                     <th>Açıklama</th>
+                    <th>Cari/Firma</th>
                     <th>Fatura</th>
+                    <th>Durum</th>
                     <th>Tutar</th>
                     <th style={{ width: '120px', textAlign: 'center' }}>İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.filter(t => t.type === 'expense').map(t => (
+                  {filteredTransactions.filter(t => t.type === 'expense').map(t => {
+                    const vendor = vendors.find(v => v.id === t.vendorId);
+                    return (
                     <tr key={t.id}>
                       <td>{format(t.date, 'dd MMM yyyy')}</td>
                       <td>{t.description}</td>
+                      <td style={{ fontSize: '12px', color: '#f59e0b' }}>{vendor?.name || <span style={{ color: 'var(--text-secondary)' }}>-</span>}</td>
                       <td><button style={{background: 'transparent', color: 'var(--accent-color)'}}><FileText size={18} /></button></td>
+                      <td>
+                        <span style={{
+                          padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 600,
+                          background: t.status === 'Ödendi' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                          color: t.status === 'Ödendi' ? 'var(--success-color)' : 'var(--danger-color)'
+                        }}>
+                          {t.status || 'Ödendi'}
+                        </span>
+                      </td>
                       <td style={{ color: 'var(--danger-color)', fontWeight: 600 }}>₺{t.amount.toLocaleString()}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <button onClick={() => openExpenseModal(t)} style={{ background: 'transparent', color: 'var(--accent-color)', marginRight: '12px' }} title="Düzenle"><Edit2 size={18} /></button>
-                        <button onClick={() => handleDeleteTransaction(t.id)} style={{ background: 'transparent', color: 'var(--danger-color)' }} title="Sil"><Trash2 size={18} /></button>
+                        {t.status !== 'Ödendi' && (
+                          <button onClick={() => handlePayVendorExpense(t.id)} style={{ background: 'transparent', color: 'var(--success-color)', marginRight: '8px' }} title="Ödendi Olarak İşaretle">✔</button>
+                        )}
+                        <button onClick={() => openExpenseModal(t)} style={{ background: 'transparent', color: 'var(--accent-color)', marginRight: '8px' }} title="Düzenle"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDeleteTransaction(t.id)} style={{ background: 'transparent', color: 'var(--danger-color)' }} title="Sil"><Trash2 size={16} /></button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -4225,6 +4495,181 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* AİDAT GRUPLARI TAB */}
+        {activeTab === 'dues_groups' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Aidat Grubu Tanımlamaları</h2>
+              <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => handleOpenDuesGroupModal()}>
+                <Plus size={18} /> Yeni Grup Ekle
+              </button>
+            </div>
+            
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14px' }}>
+                Daire tiplerine göre aidat tutarlarını gruplayın (Örn: 2+1, 3+1). Daireleri bu gruplara atayarak aidatların otomatik hesaplanmasını sağlayabilirsiniz.
+              </div>
+              
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Bina/Apartman</th>
+                      <th>Grup Adı</th>
+                      <th>Aylık Aidat Tutarı</th>
+                      <th>İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {duesGroups.filter(g => !selectedAptId || g.apartmentId === selectedAptId).map(g => (
+                      <tr key={g.id}>
+                        <td>{apartments.find(a => a.id === g.apartmentId)?.name || 'Genel'}</td>
+                        <td style={{ fontWeight: 600 }}>{g.name}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>₺{g.amount.toLocaleString()}</td>
+                        <td>
+                          <button onClick={() => handleOpenDuesGroupModal(g)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-color)', marginRight: '12px', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                          <button onClick={() => handleDeleteDuesGroup(g.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                    {duesGroups.filter(g => !selectedAptId || g.apartmentId === selectedAptId).length === 0 && (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Kayıtlı aidat grubu bulunmuyor.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FİRMALAR & CARİLER TAB */}
+        {activeTab === 'vendors' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '28px', fontWeight: 600 }}>Firmalar & Cariler</h2>
+              <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => handleOpenVendorModal()}>
+                <Plus size={18} /> Yeni Cari Ekle
+              </button>
+            </div>
+            
+            {/* Cari Borç Özeti Kartları */}
+            {(() => {
+              const vendorsWithDebt = vendors.map(v => {
+                const unpaidTx = transactions.filter(t => t.vendorId === v.id && t.status === 'Ödenmedi');
+                const totalDebt = unpaidTx.reduce((s, t) => s + t.amount, 0);
+                return { ...v, unpaidTx, totalDebt };
+              }).filter(v => v.totalDebt > 0);
+
+              return vendorsWithDebt.length > 0 ? (
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--danger-color)', marginBottom: '12px' }}>
+                    ⚠️ Ödeme Bekleyen Cari Hesaplar
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                    {vendorsWithDebt.map(v => (
+                      <div key={v.id} style={{ 
+                        background: 'rgba(239, 68, 68, 0.06)', 
+                        border: '1px solid rgba(239, 68, 68, 0.25)', 
+                        borderRadius: '12px', 
+                        padding: '16px' 
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '15px' }}>{v.name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{v.category || 'Genel'} • {v.unpaidTx.length} fatura</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 800, fontSize: '18px', color: 'var(--danger-color)' }}>₺{v.totalDebt.toLocaleString()}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>ödenmemiş</div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {v.unpaidTx.map(t => (
+                            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{t.description}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 600 }}>₺{t.amount.toLocaleString()}</span>
+                                <button 
+                                  onClick={() => handlePayVendorExpense(t.id)}
+                                  style={{ background: 'var(--success-color)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                >
+                                  Öde
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14px' }}>
+                Apartman giderlerinin faturalandırıldığı asansör servisleri, elektrikçiler, temizlik şirketleri vb. carileri tanımlayıp takip edebilirsiniz.
+              </div>
+              
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Firma / Cari Ünvan</th>
+                      <th>Kategori</th>
+                      <th>Telefon</th>
+                      <th>Ödenmemiş Borç</th>
+                      <th>İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendors.map(v => {
+                      const vendorUnpaid = transactions.filter(t => t.vendorId === v.id && t.status === 'Ödenmedi').reduce((s, t) => s + t.amount, 0);
+                      return (
+                        <tr key={v.id}>
+                          <td style={{ fontWeight: 600 }}>{v.name}</td>
+                          <td>
+                            <span style={{ 
+                              padding: '4px 8px', 
+                              borderRadius: '4px', 
+                              background: 'rgba(255,255,255,0.05)', 
+                              fontSize: '12px' 
+                            }}>
+                              {v.category || 'Belirtilmemiş'}
+                            </span>
+                          </td>
+                          <td>{v.phone || 'Girilmedi'}</td>
+                          <td>
+                            {vendorUnpaid > 0 ? (
+                              <span style={{ fontWeight: 700, color: 'var(--danger-color)' }}>₺{vendorUnpaid.toLocaleString()}</span>
+                            ) : (
+                              <span style={{ color: 'var(--success-color)', fontSize: '13px' }}>✓ Temiz</span>
+                            )}
+                          </td>
+                          <td>
+                            <button 
+                              onClick={() => { setExpenseVendorId(v.id); openExpenseModal(); }}
+                              style={{ background: 'transparent', border: 'none', color: '#f59e0b', marginRight: '8px', cursor: 'pointer', fontSize: '13px' }}
+                              title="Bu Cariye Gider Ekle"
+                            >
+                              <Plus size={16} />
+                            </button>
+                            <button onClick={() => handleOpenVendorModal(v)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-color)', marginRight: '8px', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                            <button onClick={() => handleDeleteVendor(v.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {vendors.length === 0 && (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Kayıtlı cari firma bulunmuyor.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Building Modal */}
@@ -4300,7 +4745,7 @@ export default function App() {
           <div className="glass-panel modal-content">
             <div className="modal-header">
               <h3 style={{ fontSize: '20px' }}>{editingTransactionId ? 'Gideri Düzenle' : 'Yeni Gider/Fatura Ekle'}</h3>
-              <button className="close-btn" onClick={() => { setIsExpenseModalOpen(false); setEditingTransactionId(null); setDescription(''); setAmount(''); }}><X size={24} /></button>
+              <button className="close-btn" onClick={() => { setIsExpenseModalOpen(false); setEditingTransactionId(null); setDescription(''); setAmount(''); setExpenseVendorId(''); setExpenseStatus('Ödenmedi'); setExpenseDueDate(''); }}><X size={24} /></button>
             </div>
             <input 
               type="text" 
@@ -4316,6 +4761,45 @@ export default function App() {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}>Cari / Firma (Opsiyonel)</label>
+              <select 
+                className="input-field" 
+                style={{ appearance: 'menulist' }}
+                value={expenseVendorId}
+                onChange={(e) => setExpenseVendorId(e.target.value)}
+              >
+                <option value="">-- Cari Seçin --</option>
+                {vendors.map(v => (
+                  <option key={v.id} value={v.id}>{v.name} {v.category ? `(${v.category})` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}>Ödeme Durumu</label>
+                <select 
+                  className="input-field" 
+                  style={{ appearance: 'menulist', marginBottom: 0 }}
+                  value={expenseStatus}
+                  onChange={(e) => setExpenseStatus(e.target.value as 'Ödendi' | 'Ödenmedi')}
+                >
+                  <option value="Ödenmedi">⏳ Ödenmedi</option>
+                  <option value="Ödendi">✅ Ödendi</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}>Son Ödeme Tarihi</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  placeholder="Örn: 31.12.2026"
+                  value={expenseDueDate}
+                  onChange={(e) => setExpenseDueDate(e.target.value)}
+                  style={{ marginBottom: 0 }}
+                />
+              </div>
+            </div>
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '14px' }}>Fatura Görseli Yükle</label>
               <input type="file" style={{ color: 'var(--text-primary)' }} />
@@ -4415,54 +4899,116 @@ export default function App() {
 
       {/* Resident Modal */}
       {isResidentModalOpen && (
-        <div className="modal-overlay">
-          <div className="glass-panel modal-content">
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="glass-panel modal-content" style={{ maxHeight: '90vh', overflowY: 'auto', maxWidth: '500px' }}>
             <div className="modal-header">
               <h3 style={{ fontSize: '20px' }}>{editingResidentId ? 'Sakini Düzenle' : 'Yeni Sakin Ekle'}</h3>
               <button className="close-btn" onClick={() => setIsResidentModalOpen(false)}><X size={24} /></button>
             </div>
             
-            <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '14px' }}>Bağlı Olduğu Bina</label>
-            <select 
-               className="input-field" 
-               style={{ appearance: 'menulist' }}
-               value={resAptId}
-               onChange={(e) => setResAptId(e.target.value)}
-            >
-               {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-
-            <div style={{ marginBottom: '16px', display: 'flex', gap: '16px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input type="radio" checked={resType === 'kiraci'} onChange={() => setResType('kiraci')} /> Kiracı
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input type="radio" checked={resType === 'ev_sahibi'} onChange={() => setResType('ev_sahibi')} /> Ev Sahibi
-              </label>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}>Bağlı Olduğu Bina</label>
+              <select 
+                 className="input-field" 
+                 style={{ appearance: 'menulist' }}
+                 value={resAptId}
+                 onChange={(e) => setResAptId(e.target.value)}
+              >
+                 {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
             </div>
 
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="İsim Soyisim" 
-              value={resName}
-              onChange={(e) => setResName(e.target.value)}
-            />
-            <div style={{ display: 'flex', gap: '16px' }}>
-               <input 
-                 type="text" 
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}>Aidat Grubu</label>
+              <select 
                  className="input-field" 
-                 placeholder="Daire No" 
-                 value={resAptNo}
-                 onChange={(e) => setResAptNo(e.target.value)}
-               />
-               <input 
-                 type="text" 
-                 className="input-field" 
-                 placeholder="Telefon No" 
-                 value={resPhone}
-                 onChange={(e) => setResPhone(e.target.value)}
-               />
+                 style={{ appearance: 'menulist' }}
+                 value={resDuesGroupId}
+                 onChange={(e) => setResDuesGroupId(e.target.value)}
+              >
+                 <option value="">-- Standart Tutar (Grup Dışı) --</option>
+                 {duesGroups.filter(dg => dg.apartmentId === resAptId).map(dg => (
+                   <option key={dg.id} value={dg.id}>{dg.name} (₺{dg.amount})</option>
+                 ))}
+              </select>
+            </div>
+
+            <div style={{ border: '1px solid var(--border-card)', borderRadius: '8px', padding: '12px', marginBottom: '16px', background: 'rgba(255,255,255,0.02)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--accent-color)', fontWeight: 'bold', marginBottom: '8px' }}>Mevcut Sakin / Birincil İrtibat</div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="radio" checked={resType === 'kiraci'} onChange={() => setResType('kiraci')} style={{ cursor: 'pointer' }} /> Kiracı
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="radio" checked={resType === 'ev_sahibi'} onChange={() => setResType('ev_sahibi')} style={{ cursor: 'pointer' }} /> Ev Sahibi
+                </label>
+              </div>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Birincil Kişi Adı Soyadı *" 
+                value={resName}
+                onChange={(e) => setResName(e.target.value)}
+                style={{ marginBottom: '12px' }}
+              />
+              <div style={{ display: 'flex', gap: '12px' }}>
+                 <input 
+                   type="text" 
+                   className="input-field" 
+                   placeholder="Daire No *" 
+                   value={resAptNo}
+                   onChange={(e) => setResAptNo(e.target.value)}
+                   style={{ marginBottom: 0 }}
+                 />
+                 <input 
+                   type="text" 
+                   className="input-field" 
+                   placeholder="Telefon No *" 
+                   value={resPhone}
+                   onChange={(e) => setResPhone(e.target.value)}
+                   style={{ marginBottom: 0 }}
+                 />
+              </div>
+            </div>
+
+            <div style={{ border: '1px solid var(--border-card)', borderRadius: '8px', padding: '12px', marginBottom: '16px', background: 'rgba(255,255,255,0.02)' }}>
+              <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold', marginBottom: '8px' }}>Detaylı Malik (Ev Sahibi) Bilgileri (Opsiyonel)</div>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Ev Sahibi Adı Soyadı" 
+                value={resOwnerName}
+                onChange={(e) => setResOwnerName(e.target.value)}
+                style={{ marginBottom: '8px' }}
+              />
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Ev Sahibi Telefonu" 
+                value={resOwnerPhone}
+                onChange={(e) => setResOwnerPhone(e.target.value)}
+                style={{ marginBottom: 0 }}
+              />
+            </div>
+
+            <div style={{ border: '1px solid var(--border-card)', borderRadius: '8px', padding: '12px', marginBottom: '20px', background: 'rgba(255,255,255,0.02)' }}>
+              <div style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '8px' }}>Detaylı Kiracı Bilgileri (Opsiyonel)</div>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Kiracı Adı Soyadı" 
+                value={resTenantName}
+                onChange={(e) => setResTenantName(e.target.value)}
+                style={{ marginBottom: '8px' }}
+              />
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Kiracı Telefonu" 
+                value={resTenantPhone}
+                onChange={(e) => setResTenantPhone(e.target.value)}
+                style={{ marginBottom: 0 }}
+              />
             </div>
             
             <button className="btn-primary" style={{ width: '100%' }} onClick={handleSaveResident}>
@@ -5054,6 +5600,105 @@ export default function App() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Dues Group Modal */}
+      {isDuesGroupModalOpen && (
+        <div className="modal-overlay">
+          <div className="glass-panel modal-content">
+            <div className="modal-header">
+              <h3 style={{ fontSize: '20px' }}>{editingDuesGroupId ? 'Aidat Grubunu Düzenle' : 'Yeni Aidat Grubu Ekle'}</h3>
+              <button className="close-btn" onClick={() => setIsDuesGroupModalOpen(false)}><X size={24} /></button>
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Bina Seçimi</label>
+              <select 
+                className="input-field"
+                value={duesGroupAptId}
+                onChange={(e) => setDuesGroupAptId(e.target.value)}
+                style={{ padding: '10px' }}
+              >
+                {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Grup Adı (Örn: 3+1 Daireler)</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Grup Adı" 
+                value={duesGroupName}
+                onChange={(e) => setDuesGroupName(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Aylık Aidat Tutarı (₺)</label>
+              <input 
+                type="number" 
+                className="input-field" 
+                placeholder="Tutar" 
+                value={duesGroupAmount}
+                onChange={(e) => setDuesGroupAmount(e.target.value)}
+              />
+            </div>
+
+            <button className="btn-primary" style={{ width: '100%' }} onClick={handleSaveDuesGroup}>
+              {editingDuesGroupId ? 'Güncelle' : 'Kaydet'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Vendor Modal */}
+      {isVendorModalOpen && (
+        <div className="modal-overlay">
+          <div className="glass-panel modal-content">
+            <div className="modal-header">
+              <h3 style={{ fontSize: '20px' }}>{editingVendorId ? 'Cari Kartı Düzenle' : 'Yeni Cari Kartı Ekle'}</h3>
+              <button className="close-btn" onClick={() => setIsVendorModalOpen(false)}><X size={24} /></button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Firma/Cari Ünvanı</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Firma Adı (Örn: Asansör A.Ş.)" 
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Kategori</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Örn: Asansör Bakım, Temizlik, Elektrik" 
+                value={vendorCategory}
+                onChange={(e) => setVendorCategory(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Telefon Numarası</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Örn: 05551234567" 
+                value={vendorPhone}
+                onChange={(e) => setVendorPhone(e.target.value)}
+              />
+            </div>
+
+            <button className="btn-primary" style={{ width: '100%' }} onClick={handleSaveVendor}>
+              {editingVendorId ? 'Güncelle' : 'Kaydet'}
+            </button>
           </div>
         </div>
       )}
